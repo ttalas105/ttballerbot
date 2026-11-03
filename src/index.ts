@@ -10,7 +10,7 @@ import { addSongModal, clean, queuePage } from './panel.js';
 import { saveEnv } from '../scripts/env.js';
 import { HeyRajan } from './voice/assistant.js';
 import { Speech } from './voice/speech.js';
-import { FishVoice } from './voice/fish.js';
+import { configuredFishVoice } from './voice/fish.js';
 
 requireDiscordConfig();
 const client = new Client({
@@ -26,7 +26,7 @@ const spotify = new Spotify({ clientId: config.spotifyClientId, clientSecret: co
 const youtube = new YouTube(config.ytdlp, config.ffmpeg);
 const sessions = new Map<string, MusicSession>();
 const assistants = new Map<string, HeyRajan>();
-const fish = config.fishReferenceId ? new FishVoice(config.fishKey, config.fishReferenceId, config.fishModel) : undefined;
+const fish = configuredFishVoice(config);
 const speech = new Speech(config.geminiKey, config.transcriptionModel, config.speechModel, config.announcerVoice, undefined, fish);
 const importing = new Map<string, { controller: AbortController; voiceId: string }>();
 

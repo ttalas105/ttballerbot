@@ -6,9 +6,9 @@ import { saveEnv } from './env.js';
 // Explicit host-only setup, never invoked by Discord or the conversational model.
 try {
   const path = process.argv[2];
-  if (!path || !process.argv.includes('--speaker-consented')) throw new Error('Usage: npm run voice:clone -- <clean-reference.wav> --speaker-consented. Obtain the speaker’s permission first.');
+  if (!path || !process.argv.includes('--speaker-consented')) throw new Error('Usage: npx tsx scripts/clone-voice.ts <clean-reference.wav> --speaker-consented. Obtain the speaker’s permission first.');
   if (!config.fishKey) throw new Error('Set FISH_API_KEY in the local .env first.');
-  if (config.fishReferenceId) throw new Error('A private voice is already configured. Remove FISH_REFERENCE_ID manually before deliberately replacing it.');
+  if (config.fishReferenceId || config.fishReferenceAudio || config.fishReferenceText) throw new Error('A Fish voice is already configured. Remove its reference settings manually before deliberately replacing it.');
   const extension = extname(path).toLowerCase();
   if (!['.wav', '.mp3', '.m4a', '.opus'].includes(extension)) throw new Error('Use an audio-only WAV, MP3, M4A or Opus sample.');
   const file = await stat(resolve(path));

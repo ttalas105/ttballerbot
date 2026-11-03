@@ -1,8 +1,8 @@
 import { VoiceError } from '../model.js';
 
-/** Gemini can return raw PCM or a WAV with provenance chunks after its audio data. */
+/** Decode raw PCM or a WAV with provenance chunks after its audio data. */
 export function speechPcm(data: string, mimeType: string): Buffer {
-  const invalid = () => new VoiceError('Gemini didn’t return usable 24 kHz speech audio. Try again.', 'VOICE_NO_AUDIO');
+  const invalid = () => new VoiceError('The voice service didn’t return usable 24 kHz speech audio. Try again.', 'VOICE_NO_AUDIO');
   const bytes = Buffer.from(data, 'base64');
   const mime = mimeType.toLowerCase();
   if (mime.startsWith('audio/l16')) {

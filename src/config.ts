@@ -34,6 +34,8 @@ export const config = {
   announcerVoice: process.env.VOICE_ANNOUNCER || 'Fenrir',
   fishKey: process.env.FISH_API_KEY || '',
   fishReferenceId: process.env.FISH_REFERENCE_ID || '',
+  fishReferenceAudio: process.env.FISH_REFERENCE_AUDIO || '',
+  fishReferenceText: process.env.FISH_REFERENCE_TEXT || '',
   fishModel: process.env.FISH_SPEECH_MODEL || 's2.1-pro-free',
 };
 

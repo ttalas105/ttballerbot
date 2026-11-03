@@ -72,7 +72,7 @@ export class MusicSession {
         }
         this.refresh(); resolve();
       };
-      const timeout = setTimeout(finish, options.loop ? 60000 : 32000); timeout.unref();
+      const timeout = setTimeout(finish, options.loop ? 75000 : 32000); timeout.unref();
       this.finishEffect = finish;
       effect.once(AudioPlayerStatus.Idle, finish);
       effect.once('error', error => { logError('sound effect', error); finish(); });

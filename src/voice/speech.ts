@@ -33,7 +33,7 @@ export class Speech {
     private readonly speechModel = 'gemini-3.8-flash-tts', private readonly voice = 'Fenrir', private readonly fetcher: typeof fetch = fetch,
     private readonly fish?: FishVoice) {}
   get configured(): boolean { return !!this.key; }
-  get voiceDisclosure(): string { return this.fish ? 'Replies use Rajan’s consented AI voice clone through Fish Audio. Reply text goes to Fish; its free tier may use requests to improve its models.' : 'Replies use a generated AI voice.'; }
+  get voiceDisclosure(): string { return this.fish ? `Replies use Rajan’s consented AI voice clone through Fish Audio. ${this.fish.usesReferenceAudio ? 'Reply text and his stored reference sample go to Fish.' : 'Reply text goes to Fish.'} Its free tier may use requests to improve its models.` : 'Replies use a generated AI voice.'; }
   private async request(model: string, body: object, signal: AbortSignal): Promise<GeminiResponse> {
     if (!this.key) throw new UserError('Spoken commands and the AI announcer need GEMINI_API_KEY in the host’s .env. Local wake detection and /effect dramatic work without it.');
     if (!/^[a-zA-Z0-9._-]+$/.test(model)) throw new VoiceError('The configured Gemini model name is invalid.', 'GEMINI_MODEL_CONFIG');

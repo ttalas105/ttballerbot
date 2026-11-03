@@ -2,14 +2,14 @@ import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { config } from '../src/config.js';
 import { Speech } from '../src/voice/speech.js';
-import { FishVoice } from '../src/voice/fish.js';
+import { configuredFishVoice } from '../src/voice/fish.js';
 import { wav } from '../src/voice/capture.js';
 import { logError } from '../src/model.js';
 import type { ConversationTurn } from '../src/voice/memory.js';
 
 // Explicit development check: uses configured providers, never joins Discord or queues music.
 // Only authored fixture text/audio is sent. Never print model text or credential values.
-const fish = config.fishReferenceId ? new FishVoice(config.fishKey, config.fishReferenceId, config.fishModel) : undefined;
+const fish = configuredFishVoice(config);
 const speech = new Speech(config.geminiKey, config.transcriptionModel, config.speechModel, config.announcerVoice, undefined, fish);
 const people = [{ id: 'fixture', name: 'Jason', aliases: [] }];
 const history: ConversationTurn[] = [];
