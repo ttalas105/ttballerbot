@@ -1,0 +1,32 @@
+{
+  "name": "ttballerbot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Discord music queues with Spotify link lookup and YouTube audio",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/src/index.js",
+    "test": "tsx --test test/*.test.ts",
+    "check": "tsc --noEmit && npm test",
+    "setup": "tsx scripts/setup.ts",
+    "doctor": "tsx scripts/doctor.ts",
+    "register": "tsx scripts/register.ts",
+    "spotify:login": "tsx scripts/spotify-login.ts",
+    "tools:install": "tsx scripts/install-tools.ts"
+  },
+  "dependencies": {
+    "@discordjs/voice": "0.19.2",
+    "@napi-rs/canvas": "1.1.0",
+    "discord.js": "14.28.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2"
+  }
+}
