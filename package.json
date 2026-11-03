@@ -18,7 +18,8 @@
     "register": "tsx scripts/register.ts",
     "spotify:login": "tsx scripts/spotify-login.ts",
     "tools:install": "tsx scripts/install-tools.ts",
-    "voice:install": "tsx scripts/install-voice.ts"
+    "voice:install": "tsx scripts/install-voice.ts",
+    "voice:clone": "tsx scripts/clone-voice.ts"
   },
   "dependencies": {
     "@discordjs/voice": "0.19.2",

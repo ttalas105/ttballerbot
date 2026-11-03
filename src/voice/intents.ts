@@ -21,9 +21,9 @@ export function resolveName(target: string, people: Person[], userId?: string): 
 
 /** Fast path for explicit typed requests; other requests go to the conversational model. */
 export function parseVoiceIntent(text: string, people: Person[], userId?: string): VoiceIntent {
-  const raw = text.trim().replace(/^hey baller[,!\s]*/i, '').replace(/^(?:(?:can|could|would) you\s+)?(?:please\s+)?/i, '').replace(/[,!?.]*\s+please[.!?]*$/i, '').trim();
+  const raw = text.trim().replace(/^hey rajan[,!\s]*/i, '').replace(/^(?:(?:can|could|would) you\s+)?(?:please\s+)?/i, '').replace(/[,!?.]*\s+please[.!?]*$/i, '').trim();
   const command = normalize(raw).replace(/\bw w e\b/g, 'wwe');
-  if (!command) throw new VoiceError('I didn’t hear a request. Say “Hey Baller”, then speak after the chime.', 'VOICE_EMPTY_COMMAND');
+  if (!command) throw new VoiceError('I didn’t hear a request. Say “Hey Rajan”, then speak after the chime.', 'VOICE_EMPTY_COMMAND');
   if (/^(?:stop|stop (?:the )?(?:effects|sound|soundtrack|talking)|cancel|quiet|silence)$/.test(command)) return { kind: 'stop' };
   if (/^(?:stop (?:the )?music|stop playing music)$/.test(command)) return { kind: 'stop_music' };
   if (/^(?:pause|pause (?:the )?(?:music|song))$/.test(command)) return { kind: 'pause' };
@@ -54,7 +54,7 @@ export function parseDecision(raw: string, people: Person[], userId?: string): V
   if (typeof item.transcript !== 'string' || item.transcript.length > 500 || typeof item.kind !== 'string'
     || !actionKinds.includes(item.kind as typeof actionKinds[number])) throw invalid();
   const transcript = item.transcript.trim();
-  if (!transcript) throw new VoiceError('I didn’t catch that. Say “Hey Baller” and try again after the chime.', 'VOICE_EMPTY_COMMAND');
+  if (!transcript) throw new VoiceError('I didn’t catch that. Say “Hey Rajan” and try again after the chime.', 'VOICE_EMPTY_COMMAND');
   let intent: VoiceDecision['intent'];
   if (item.kind === 'music') {
     if (typeof item.query !== 'string' || !item.query.trim() || item.query.length > 500) throw invalid();

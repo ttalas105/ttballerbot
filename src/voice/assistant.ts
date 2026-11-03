@@ -11,7 +11,7 @@ import { VoiceMemory } from './memory.js';
 
 export interface VoiceActions { play(query: string, userId: string, signal: AbortSignal): Promise<string> }
 
-export class HeyBaller {
+export class HeyRajan {
   readonly members = new Map<string, AudioReceiveStream>();
   private worker?: Worker;
   private ready?: Promise<void>;
@@ -88,7 +88,7 @@ export class HeyBaller {
       this.worker?.postMessage({ type: 'audio', userId: member.id, packet });
     });
     stream.on('error', error => { logError('voice receive', error); this.remove(member.id); });
-    this.status = this.speech.configured ? 'Say “Hey Baller”, wait for the chime, then speak.' : 'Wake test ready. Commands need a Gemini API key; /effect dramatic works now.';
+    this.status = this.speech.configured ? 'Say “Hey Rajan”, wait for the chime, then speak.' : 'Wake test ready. Commands need a Gemini API key; /effect dramatic works now.';
     clearTimeout(this.expiry);
     this.expiry = setTimeout(() => this.close('Listening expired after 15 minutes. Use /hey on again.'), 15 * 60000); this.expiry.unref();
     await this.publish();
@@ -111,7 +111,7 @@ export class HeyBaller {
     this.execution?.abort(); this.execution = undefined; this.executionUser = undefined;
     for (const userId of this.members.keys()) this.worker?.postMessage({ type: 'cancel', userId });
     this.session.stopEffect();
-    this.status = this.members.size ? 'Stopped. Ready for “Hey Baller”.' : 'Assistant stopped.';
+    this.status = this.members.size ? 'Stopped. Ready for “Hey Rajan”.' : 'Assistant stopped.';
     void this.publish().catch(logError.bind(null, 'voice panel'));
   }
   private rearm(): void {
@@ -122,7 +122,7 @@ export class HeyBaller {
   private async wake(userId: string): Promise<void> {
     if (this.closed || !this.members.has(userId) || this.active || this.execution || this.session.effectPlaying) return;
     const request = { userId, controller: new AbortController() }; this.active = request;
-    this.status = `Heard “Hey Baller” from ${this.people().find(person => person.id === userId)?.name || 'a listener'}.`;
+    this.status = `Heard “Hey Rajan” from ${this.people().find(person => person.id === userId)?.name || 'a listener'}.`;
     void this.publish().catch(logError.bind(null, 'voice panel'));
     await this.session.playEffect(effectPcm('chime'), request.controller.signal);
     if (request.controller.signal.aborted || this.closed) return;
@@ -138,7 +138,7 @@ export class HeyBaller {
     const request = this.active;
     if (!request || request.userId !== userId || this.closed || !this.members.has(userId)) return;
     try {
-      if (!pcm) throw new VoiceError('I didn’t hear a request. Say “Hey Baller” and speak after the chime.', 'VOICE_EMPTY_COMMAND');
+      if (!pcm) throw new VoiceError('I didn’t hear a request. Say “Hey Rajan” and speak after the chime.', 'VOICE_EMPTY_COMMAND');
       await this.execute(pcm, userId, request.controller.signal);
     } catch (error) { if (!request.controller.signal.aborted) this.report(error); }
     finally { if (this.active === request) this.active = undefined; this.rearm(); }
@@ -169,7 +169,7 @@ export class HeyBaller {
         : await this.speech.understand(input, this.people(), userId, this.memory.get(userId), signal);
       if (signal.aborted || generation !== this.generation || this.closed || !this.session.voice?.members.has(userId)) return;
       const { intent } = decision;
-      console.log(`${new Date().toISOString()} [hey baller] action=${intent.kind} understoodMs=${Date.now() - started}`);
+      console.log(`${new Date().toISOString()} [hey rajan] action=${intent.kind} understoodMs=${Date.now() - started}`);
       let response = '';
       if (intent.kind === 'stop') { this.cancel(); await this.publish(); return; }
       if (intent.kind === 'music') {
@@ -205,8 +205,8 @@ export class HeyBaller {
       }
       if (signal.aborted || generation !== this.generation || this.closed) return;
       this.memory.add(userId, decision.transcript, response);
-      console.log(`${new Date().toISOString()} [hey baller] completed=${intent.kind} totalMs=${Date.now() - started}`);
-      this.status = `${intent.kind === 'music' || ['pause', 'resume', 'skip', 'back', 'shuffle'].includes(intent.kind) ? `${response}\n\n` : ''}${this.members.size ? 'Ready. Say “Hey Baller” for your next request.' : 'Ready for /ask or /effect. Voice listening is off.'}`;
+      console.log(`${new Date().toISOString()} [hey rajan] completed=${intent.kind} totalMs=${Date.now() - started}`);
+      this.status = `${intent.kind === 'music' || ['pause', 'resume', 'skip', 'back', 'shuffle'].includes(intent.kind) ? `${response}\n\n` : ''}${this.members.size ? 'Ready. Say “Hey Rajan” for your next request.' : 'Ready for /ask or /effect. Voice listening is off.'}`;
       await this.publish();
     } catch (error) {
       if (!signal.aborted && typeof input === 'string') this.report(error);
@@ -217,16 +217,16 @@ export class HeyBaller {
       this.rearm();
     }
   }
-  private report(error: unknown): void { logError('hey baller', error); if (this.closed) return; this.status = userMessage(error); void this.publish().catch(logError.bind(null, 'voice panel')); }
+  private report(error: unknown): void { logError('hey rajan', error); if (this.closed) return; this.status = userMessage(error); void this.publish().catch(logError.bind(null, 'voice panel')); }
   async publish(): Promise<void> {
     await this.panelSerial.run(async () => {
       const enabled = this.members.size > 0;
-      const embed = new EmbedBuilder().setColor(enabled ? 0x88e8b5 : 0x52685c).setTitle('HEY BALLER • your voice assistant')
+      const embed = new EmbedBuilder().setColor(enabled ? 0x88e8b5 : 0x52685c).setTitle('HEY RAJAN • AI cuzo')
         .setDescription(this.status).addFields({ name: enabled ? 'Listening locally for the wake phrase' : 'Voice listening is off',
           value: enabled ? [...this.members.keys()].map(id => `<@${id}>`).join(' · ') : 'Use /hey on to opt in for your own voice.' },
         { name: 'Try saying', value: '“Play some J Cole” · “Tell me a joke” · “Announce Tyrone like a wedding” · “Dramatic soundtrack” · “Pause the music”' },
-        { name: 'Your voice, your choice', value: 'Only opted-in voices are checked locally. After the chime, up to 8 seconds go to Gemini. Your last 4 requests and replies stay in memory for 10 minutes for follow-ups and are sent with your next request. No recordings or transcripts are saved to disk. Opt-out clears your context. Google’s free tier may use requests to improve its products. Replies use an AI voice.' })
-        .setFooter({ text: 'Hey Baller → chime → speak • Wake again for each reply • 15-minute opt-in • /ask works without listening' });
+        { name: 'Your voice, your choice', value: `Only opted-in voices are checked locally. After the chime, up to 8 seconds go to Gemini. Your last 4 requests and replies stay in memory for 10 minutes for follow-ups and are sent with your next request. Live requests are not saved to disk. Opt-out clears your context. Google’s free tier may use requests to improve its products. ${this.speech.voiceDisclosure || 'Replies use an AI voice.'}` })
+        .setFooter({ text: 'Hey Rajan → chime → speak • Wake again for each reply • 15-minute opt-in • /ask works without listening' });
       const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(`tth:${this.session.id}:off`).setLabel('Stop listening to me').setStyle(ButtonStyle.Secondary).setDisabled(!enabled),
         new ButtonBuilder().setCustomId(`tth:${this.session.id}:stop`).setLabel('Stop response').setStyle(ButtonStyle.Danger).setDisabled(this.closed),

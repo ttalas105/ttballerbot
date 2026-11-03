@@ -32,6 +32,9 @@ export const config = {
   transcriptionModel: process.env.VOICE_TRANSCRIPTION_MODEL || 'gemini-3.1-flash-lite',
   speechModel: process.env.VOICE_SPEECH_MODEL || 'gemini-3.8-flash-tts',
   announcerVoice: process.env.VOICE_ANNOUNCER || 'Fenrir',
+  fishKey: process.env.FISH_API_KEY || '',
+  fishReferenceId: process.env.FISH_REFERENCE_ID || '',
+  fishModel: process.env.FISH_SPEECH_MODEL || 's2.1-pro-free',
 };
 
 export function requireDiscordConfig(): void {

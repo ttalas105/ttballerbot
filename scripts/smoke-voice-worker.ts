@@ -5,8 +5,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 import assert from 'node:assert/strict';
 import OpusScript from 'opusscript';
 
-// Run after npm run build. Pass a 16 kHz mono WAV saying "Hey Baller".
-const path = process.argv[2]; if (!path) throw new Error('Pass a mono 16 kHz Hey Baller WAV.');
+// Run after npm run build. Pass a 16 kHz mono WAV saying "Hey Rajan".
+const path = process.argv[2]; if (!path) throw new Error('Pass a mono 16 kHz Hey Rajan WAV.');
 const sherpa = createRequire(import.meta.url)('sherpa-onnx-node');
 const wave = sherpa.readWave(path) as { samples: Float32Array; sampleRate: number };
 assert.equal(wave.sampleRate, 16000);

@@ -11,7 +11,7 @@ import { speechPcm } from '../src/voice/pcm.js';
 
 const people = [{ id: '1', name: 'Jason', aliases: ['jdog'] }, { id: '2', name: 'Sushi', aliases: ['floatingsushi'] }];
 test('voice actions accept supported natural phrases and exact member aliases', () => {
-  assert.deepEqual(parseVoiceIntent('Hey Baller, give this conversation a dramatic soundtrack!', people), { kind: 'dramatic' });
+  assert.deepEqual(parseVoiceIntent('Hey Rajan, give this conversation a dramatic soundtrack!', people), { kind: 'dramatic' });
   assert.deepEqual(parseVoiceIntent('announce jdog like a WWE entrance', people), { kind: 'entrance', name: 'Jason' });
   assert.deepEqual(parseVoiceIntent('give Jason a wrestling entrance', people), { kind: 'entrance', name: 'Jason' });
   assert.deepEqual(parseVoiceIntent('play an air horn', people), { kind: 'airhorn' });

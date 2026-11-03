@@ -8,8 +8,9 @@ import { parseInput } from './input.js';
 import { UserError, logError, userMessage, type ImportResult } from './model.js';
 import { addSongModal, clean, queuePage } from './panel.js';
 import { saveEnv } from '../scripts/env.js';
-import { HeyBaller } from './voice/assistant.js';
+import { HeyRajan } from './voice/assistant.js';
 import { Speech } from './voice/speech.js';
+import { FishVoice } from './voice/fish.js';
 
 requireDiscordConfig();
 const client = new Client({
@@ -24,8 +25,9 @@ const spotify = new Spotify({ clientId: config.spotifyClientId, clientSecret: co
 });
 const youtube = new YouTube(config.ytdlp, config.ffmpeg);
 const sessions = new Map<string, MusicSession>();
-const assistants = new Map<string, HeyBaller>();
-const speech = new Speech(config.geminiKey, config.transcriptionModel, config.speechModel, config.announcerVoice);
+const assistants = new Map<string, HeyRajan>();
+const fish = config.fishReferenceId ? new FishVoice(config.fishKey, config.fishReferenceId, config.fishModel) : undefined;
+const speech = new Speech(config.geminiKey, config.transcriptionModel, config.speechModel, config.announcerVoice, undefined, fish);
 const importing = new Map<string, { controller: AbortController; voiceId: string }>();
 
 function sessionFor(member: GuildMember, channel: GuildTextBasedChannel): MusicSession {
@@ -43,16 +45,16 @@ function sessionFor(member: GuildMember, channel: GuildTextBasedChannel): MusicS
 }
 
 async function voiceAction(member: GuildMember, channel: GuildTextBasedChannel, mode: string, prompt?: string): Promise<string> {
-  if (!config.heyEnabled) throw new UserError('Hey Baller is disabled. The host can enable it with ENABLE_HEY_BALLER=true.');
+  if (!config.heyEnabled) throw new UserError('Hey Rajan is disabled. The host can enable it with ENABLE_HEY_BALLER=true.');
   let assistant = assistants.get(member.guild.id);
   if (mode === 'status') {
-    if (!assistant || assistant.ended) return 'Hey Baller is off. /hey mode:on opts in only your own voice.';
+    if (!assistant || assistant.ended) return 'Hey Rajan is off. /hey mode:on opts in only your own voice.';
     await assistant.publish(); return `Voice assistant: <#${assistant.session.text.id}>. ${assistant.members.size} opted-in listener(s).`;
   }
   const voice = requireVoice(member);
   if (assistant && !assistant.ended && assistant.session.voice?.id !== voice.id) throw new UserError('Join the bot’s voice channel first.');
   if (['off', 'alloff', 'stop'].includes(mode)) {
-    if (!assistant || assistant.ended) return 'Hey Baller is already off.';
+    if (!assistant || assistant.ended) return 'Hey Rajan is already off.';
     if (mode === 'off') assistant.remove(member.id);
     else if (mode === 'alloff') assistant.close();
     else assistant.cancel();
@@ -62,7 +64,7 @@ async function voiceAction(member: GuildMember, channel: GuildTextBasedChannel, 
   await session.serial.run(async () => {
     session.assertMember(member); await session.connect(member);
     if (!assistant || assistant.ended) {
-      assistant = new HeyBaller(session, speech, { play: async (query, userId, signal) => {
+      assistant = new HeyRajan(session, speech, { play: async (query, userId, signal) => {
         signal.throwIfAborted();
         const requester = session.voice?.members.get(userId);
         if (!requester) throw new UserError('Join the bot’s voice channel first.');
@@ -76,7 +78,7 @@ async function voiceAction(member: GuildMember, channel: GuildTextBasedChannel, 
     try { await assistant!.execute(prompt || '', member.id); }
     finally { if (!assistant!.busy && !assistant!.members.size && !session.queue.size) session.close('Assistant request finished.'); }
   }
-  return mode === 'on' ? 'Enabled for your voice for 15 minutes. Say “Hey Baller”, wait for the chime, then ask anything, request music, or an effect. Wake again for each request. /hey mode:off opts out.' : 'Request complete.';
+  return mode === 'on' ? 'Enabled for your voice for 15 minutes. Say “Hey Rajan”, wait for the chime, then ask anything, request music, or an effect. Wake again for each request. /hey mode:off opts out.' : 'Request complete.';
 }
 
 async function play(member: GuildMember, channel: GuildTextBasedChannel, query: string, signal?: AbortSignal): Promise<string> {

@@ -100,15 +100,15 @@ Audio is buffered ahead in bounded memory to tolerate network stalls. Interrupte
 
 ## Data and secrets
 
-`.env`, `bin/`, `models/`, and `.runtime/` are ignored by Git. Never share `.env` or bot tokens. The bot reads command requests and voice membership, keeps queue metadata in memory, sends song-search terms to YouTube, and displays queued titles in Discord. Incoming voice is not processed unless a listener explicitly opts into Hey Baller below. Audio is piped through yt-dlp and FFmpeg without saving songs to disk. Console errors omit provider response bodies and credentials. Spotify metadata is linked back to Spotify.
+`.env`, `bin/`, `models/`, and `.runtime/` are ignored by Git. Never share `.env` or bot tokens. The bot reads command requests and voice membership, keeps queue metadata in memory, sends song-search terms to YouTube, and displays queued titles in Discord. Incoming voice is not processed unless a listener explicitly opts into Hey Rajan below. Audio is piped through yt-dlp and FFmpeg without saving songs to disk. Console errors omit provider response bodies and credentials. Spotify metadata is linked back to Spotify.
 
 Player artwork uses the provider's original cover image in a custom layout. Cover requests are limited to known Spotify/YouTube image hosts, bounded to 5 MB, and timeout after four seconds. The bundled Barlow Condensed fonts are licensed under the SIL Open Font License in `assets/fonts/OFL.txt`.
 
 To disconnect Spotify, revoke **ttballerbot** in your Spotify account's app-access settings, clear the Spotify credentials/refresh token in `.env`, and restart the bot. Stop the bot to clear queued data; remove existing queue messages from Discord if you also want those displays deleted.
 
-## Hey Baller — experimental `heyTT` branch
+## Hey Rajan — experimental `heyTT` branch
 
-An opt-in voice assistant for conversation, music, and sound effects. Say **“Hey Baller”**, wait for the ready chime, then speak:
+An opt-in voice assistant for conversation, music, and sound effects. Rajan AI has a sarcastic, playful personality, dry comebacks, and occasional “yoooooo cuzo” / “diddy blud” catchphrases. It is an AI character, not the actual person. Say **“Hey Rajan”**, wait for the ready chime, then speak:
 
 - “Give this conversation a dramatic soundtrack” — 15 seconds of original synthesized suspense music.
 - “Air horn” — a short synthesized horn.
@@ -138,6 +138,20 @@ In `.env`, set `ENABLE_HEY_BALLER=true`. Create a **free-tier** Gemini API key i
 
 Defaults are `gemini-3.1-flash-lite` for audio understanding/conversation and `gemini-3.8-flash-tts` with `Fenrir` for speech. `VOICE_TRANSCRIPTION_MODEL`, `VOICE_SPEECH_MODEL`, and `VOICE_ANNOUNCER` can override these. A single multimodal call understands a spoken request and either selects an allowed action or writes a reply; spoken replies need a second TTS call. Explicit typed music/effect/control requests skip the understanding call. The last 20 generated speech lines are cached in memory by text and style. Cloud latency and free quotas vary; replies are not guaranteed to be instant.
 
+### Optional private voice clone
+
+With the speaker’s permission, prepare 30–60 seconds of clean solo speech in `.runtime/` (ignored by Git). Keep the source recording out of this public repo. Create a Fish Audio API key and set `FISH_API_KEY` locally, then run:
+
+```powershell
+npm run voice:clone -- .runtime/rajan-reference.wav --speaker-consented
+```
+
+This uploads that audio to Fish Audio, creates a **private** voice, and saves `FISH_REFERENCE_ID` only in `.env`. Set the key and ID together before restarting the bot. Gemini continues understanding requests; Fish receives only outgoing reply text and the configured voice ID for speech. The status card discloses the AI clone. The free model `FISH_SPEECH_MODEL=s2.1-pro-free` is explicit; service/quota failures never automatically switch to a paid model or another voice. To return to Gemini TTS, remove both Fish settings and restart. The private cloud voice and local reference remain until you delete them separately.
+
+As checked on November 3, 2026, Fish lists this model at $0 and advertises free access through November 30, 2026, subject to fair use. Requests may be retained for model improvement and latency is best-effort. See [Fish pricing](https://docs.fish.audio/developer-guide/models-pricing/pricing-and-rate-limits), [free-tier terms](https://fish.audio/blog/s2-1-pro-free-api/) and [voice cloning](https://docs.fish.audio/features/voice-cloning). No billing or subscription is required for this free-model setup; do not assume the promotion is permanent.
+
+The historical `ENABLE_HEY_BALLER` environment setting still enables the assistant; the detected wake phrase is now “Hey Rajan”.
+
 ```powershell
 npm run check
 npm run build
@@ -153,13 +167,13 @@ Join voice and run `/hey mode:on`. **Only the user who invokes it opts in.** Up 
 
 Normal opted-in speech goes only to the local Sherpa-ONNX keyword spotter. After the ready chime, a bounded buffer holds at most eight seconds of that user's request. A short silence ends capture, and Gemini receives the buffer, name hints, and that speaker's last four successful requests/replies. Context stays in memory for ten minutes and is cleared on opt-out, channel leave, session expiry, or restart. Users' conversation contexts are separate. Spoken replies are audible to everyone in the channel.
 
-Model output is validated against an allowlist before any action. Music uses the existing URL validation, queue limits, and same-channel checks; there are no moderation, server administration, shell, or arbitrary network tools. Opt-out, channel leave, expiry, and stop cancel pending operations; late model responses cannot start playback. The bot stores no incoming recordings or transcripts on disk and does not print them in logs. Diagnostic logs contain only action categories, timing, and safe error codes. Gemini uses the stateless [generateContent API](https://aistudio.google.com/api-reference/generate-content/generate-content), without uploaded files, server-side conversation IDs, or explicit context caches. Google's service terms/data policies still apply independently.
+Model output is validated against an allowlist before any action. Music uses the existing URL validation, queue limits, and same-channel checks; there are no moderation, server administration, shell, or arbitrary network tools. Opt-out, channel leave, expiry, and stop cancel pending operations; late model responses cannot start playback. The bot stores no live incoming requests or transcripts on disk and does not print them in logs. An explicitly supplied voice-cloning reference is separate from live requests and is uploaded only by the host’s setup command. Diagnostic logs contain only action categories, timing, and safe error codes. Gemini uses the stateless [generateContent API](https://aistudio.google.com/api-reference/generate-content/generate-content), without uploaded files, server-side conversation IDs, or explicit context caches. Google's service terms/data policies still apply independently.
 
 Discord voice reception is supported by `@discordjs/voice`, but is not documented by Discord and can break with platform changes. The wake model comes from the [official Sherpa-ONNX release](https://github.com/k2-fsa/sherpa-onnx/releases/tag/kws-models), downloaded separately with a pinned SHA-256. It is not committed to this repo. Model provenance/license: [upstream model](https://www.modelscope.cn/models/pkufool/sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01), Apache 2.0. The authored effects contain no sampled commercial recordings.
 
 Additional checks:
 
 - `npx tsx scripts/smoke-wake.ts <mono-16kHz.wav> ...`: test keyword spotting locally; never joins Discord or calls an API.
-- `node dist/scripts/smoke-voice-worker.js <mono-16kHz-hey-baller.wav>`: verify real Opus decoding, opt-in isolation, wake detection, command capture, and opt-out.
+- `node dist/scripts/smoke-voice-worker.js <mono-16kHz-hey-rajan.wav>`: verify real Opus decoding, opt-in isolation, wake detection, command capture, and opt-out.
 - `npx tsx scripts/smoke-gemini.ts <mono-16kHz-command.wav>`: make one Gemini transcription request. No path generates a Jason announcer preview in ignored `.runtime/` instead. These explicit development checks use API quota.
 - `npx tsx scripts/smoke-assistant.ts`: check music, wedding, jokes, follow-up context, and conversational TTS against Gemini without connecting to Discord. Writes an authored speech preview to ignored `.runtime/assistant-preview.wav`. Pass `<mono-16kHz-command.wav> <expected-action>` to check a synthetic audio fixture instead. Uses API quota; prints only result categories and timing.

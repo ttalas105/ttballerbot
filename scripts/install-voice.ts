@@ -16,4 +16,4 @@ const listing = execFileSync('tar', ['-tf', '.runtime/wake-model.tar.bz2'], { en
 if (listing.split(/\r?\n/).filter(Boolean).some(path => !path.startsWith(`${MODEL_NAME}/`) || path.split('/').includes('..'))) throw new Error('Unsafe model archive.');
 execFileSync('tar', ['-xf', '.runtime/wake-model.tar.bz2', '-C', 'models']);
 await readFile(`models/${MODEL_NAME}/tokens.txt`);
-console.log('Local Hey Baller model installed. No microphone or Discord audio was accessed.');
+console.log('Local Hey Rajan model installed. No microphone or Discord audio was accessed.');

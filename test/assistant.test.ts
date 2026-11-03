@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import type { AudioReceiveStream } from '@discordjs/voice';
 import type { MusicSession } from '../src/session.js';
 import { SerialExecutor } from '../src/queue.js';
-import { HeyBaller } from '../src/voice/assistant.js';
+import { HeyRajan } from '../src/voice/assistant.js';
 import type { Speech } from '../src/voice/speech.js';
 import type { ConversationTurn } from '../src/voice/memory.js';
 import type { VoiceDecision } from '../src/voice/intents.js';
@@ -45,7 +45,7 @@ function harness(t: TestContext) {
     },
     speak: async (text: string, _signal: AbortSignal, style: string): Promise<Buffer> => { voices.push({ text, style }); return Buffer.alloc(48000); },
   };
-  const assistant = new HeyBaller(session as unknown as MusicSession, speech as unknown as Speech, {
+  const assistant = new HeyRajan(session as unknown as MusicSession, speech as unknown as Speech, {
     play: async (query, userId, signal) => { plays.push({ query, userId, signal }); return 'Queued a song.'; },
   });
   const worker = { postMessage: (message: { type: string; userId: string }) => workerMessages.push(message), terminate: async () => 0 };
