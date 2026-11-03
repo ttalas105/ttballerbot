@@ -179,7 +179,7 @@ export class HeyRajan {
         thinkingDone = this.session.playEffect(effectPcm('thinking'), AbortSignal.any([signal, thinking.signal]), { loop: true })
           .catch(error => logError('thinking sound', error));
       }
-      // One multimodal request understands the audio AND prepares a conversational reply.
+      // Spoken requests use dedicated transcription, then the fast text conversation path.
       const decision: VoiceDecision = local && local.kind !== 'chat' ? { transcript: String(input).slice(0, 500), intent: local }
         : await this.speech.understand(input, this.people(), userId, this.memory.get(userId), signal);
       if (signal.aborted || generation !== this.generation || this.closed || !this.session.voice?.members.has(userId)) return;

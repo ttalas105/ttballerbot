@@ -96,21 +96,31 @@ test('follow-up context is isolated, capped, expires, and is erased on opt-out',
   memory.clear();
 });
 
-test('assistant understands audio and prepares a reply in one request, with bounded per-user context', async () => {
+test('assistant transcribes audio before fast text conversation, preserving per-user context', async () => {
   let request: Record<string, any> = {};
+  let calls = 0;
   const speech = new Speech('test-key', undefined, undefined, undefined, async (url, init) => {
     request = JSON.parse(String(init?.body));
-    assert.match(String(url), /:streamGenerateContent\?alt=sse$/);
+    if (++calls === 1) {
+      assert.match(String(url), /\/interactions$/);
+      assert.equal(request.store, false);
+      assert.equal(request.input.length, 1);
+      assert.equal(request.input[0].type, 'audio');
+      assert.doesNotMatch(JSON.stringify(request), /First joke|tell me a joke/);
+      return Response.json({ status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'text', text: 'tell me another one' }] }] });
+    }
+    assert.match(String(url), /\/gemini-3\.5-flash-lite:streamGenerateContent\?alt=sse$/);
     return streamedDecision({ transcript: 'tell me another one', kind: 'say', reply: 'Another joke.', query: '', name: '' });
   });
   const result = await speech.understand(Buffer.alloc(32000), people, '2', [{ request: 'tell me a joke', response: 'First joke.' }], new AbortController().signal);
   assert.equal(result.intent.kind, 'say');
   assert.equal(request.previous_interaction_id, undefined); assert.equal(request.cachedContent, undefined);
-  assert.equal(request.contents[0].parts[1].inlineData.mimeType, 'audio/wav');
+  assert.deepEqual(request.contents[0].parts[1], { text: 'tell me another one' });
   assert.equal(request.generationConfig.responseMimeType, 'application/json');
   assert.match(request.contents[0].parts[0].text, /First joke/); assert.match(request.contents[0].parts[0].text, /Sushi/);
   assert.equal(request.tools, undefined);
   await assert.rejects(speech.understand(Buffer.alloc(256002), people, '2', [], new AbortController().signal), /too long/);
+  assert.equal(calls, 2);
 });
 
 test('speech style is included in the cache and diagnostic logs never include request content', async t => {
@@ -141,17 +151,22 @@ test('speech decoding strips WAV headers and provenance chunks and rejects malfo
   assert.throws(() => speechPcm(wave.subarray(0, 200).toString('base64'), 'audio/wav'), /24 kHz/);
   assert.throws(() => speechPcm(pcm.toString('base64'), 'audio/mpeg'), /24 kHz/);
 });
-test('Gemini requests contain only the bounded command and use stateless generation', async () => {
+test('dedicated transcription sends bounded inline audio and explicitly disables interaction storage', async () => {
   let request: Record<string, any> = {};
   const speech = new Speech('test-key', undefined, undefined, undefined, async (url, init) => {
     request = JSON.parse(String(init?.body));
-    assert.match(String(url), /\/models\/gemini-3\.5-flash-lite:generateContent$/);
+    assert.match(String(url), /\/interactions$/);
     assert.equal((init?.headers as Record<string, string>)['x-goog-api-key'], 'test-key');
-    return Response.json({ candidates: [{ content: { parts: [{ thought: true, text: 'hidden' }, { text: 'air horn' }] } }] });
+    assert.equal((init?.headers as Record<string, string>)['Api-Revision'], '2026-05-20');
+    return Response.json({ status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'text', text: 'air horn' }] }] });
   });
   assert.equal(await speech.transcribe(Buffer.alloc(32000), ['Jason'], new AbortController().signal), 'air horn');
-  assert.equal(request.cachedContent, undefined); assert.equal(request.contents[0].parts[1].inlineData.mimeType, 'audio/wav');
-  assert.equal(Buffer.from(request.contents[0].parts[1].inlineData.data, 'base64').length, 32044);
+  assert.equal(request.model, 'gemini-3.5-transcribe');
+  assert.equal(request.store, false); assert.equal(request.previous_interaction_id, undefined);
+  assert.equal(request.input[0].mime_type, 'audio/wav');
+  assert.equal(Buffer.from(request.input[0].data, 'base64').length, 32044);
+  assert.equal(request.generation_config.transcription_config.mode.type, 'verbatim');
+  assert.ok(request.generation_config.transcription_config.custom_vocabulary.includes('Jason'));
   await assert.rejects(speech.transcribe(Buffer.alloc(256002), [], new AbortController().signal), /too long/);
 });
 test('announcer responses are cached, bounded, cancellable, and quota errors do not retry', async () => {
@@ -187,7 +202,7 @@ test('a transient Gemini outage retries once; repeated failures release the call
 
 test('an understanding deadline also cancels a stalled response body without retrying', async t => {
   const deadline = new AbortController();
-  t.mock.method(AbortSignal, 'timeout', (ms: number) => { assert.equal(ms, 25000); return deadline.signal; });
+  t.mock.method(AbortSignal, 'timeout', (ms: number) => { assert.equal(ms, 10000); return deadline.signal; });
   let calls = 0;
   const speech = new Speech('test-key', undefined, undefined, undefined, async (_url, init) => {
     calls++;
