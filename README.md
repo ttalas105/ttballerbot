@@ -9,6 +9,8 @@ A Discord listening room: join voice, send `/play` or `@ttballerbot play`, and c
 
 The Discord Components V2 player has a custom album-art banner, progress display, requester, next three tracks, total queued time, and the actual YouTube match. Buttons: **Back · Pause/Resume · Next · Shuffle · Stop**, plus **Add a song** (opens a form) and **View queue** (private paginated list). Artwork is rendered once per song and reused for progress updates. It needs Attach Files permission; without it, the native text and controls still work.
 
+Music plays at 50% volume. Rajan’s speech and sound effects use their own audio path and keep their original volume.
+
 ## Spotify and audio sources
 
 Spotify supplies **metadata**, not the audio. A Spotify track is matched to a YouTube video when it reaches the front of the queue. Matching requires the song title and primary artist, checks duration, and rejects unrequested alternate versions. If neither search produces a confident match, the bot skips the song with an explanation instead of playing an unrelated result. Matching is approximate; the actual YouTube title/link and audio duration are shown so you can identify a different version and request the exact URL. Playlist order is preserved unless a listener uses Shuffle.

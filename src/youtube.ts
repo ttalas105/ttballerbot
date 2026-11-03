@@ -191,7 +191,7 @@ export function createFfmpegAudio(ffmpeg: string, inputArgs: string[], track: Tr
   const output = new PassThrough({ highWaterMark: 1024 * 1024 });
   const child = spawn(ffmpeg, [
     '-hide_banner', '-loglevel', 'error', '-nostdin', ...inputArgs,
-    '-vn', '-ac', '2', '-ar', '48000', '-c:a', 'libopus', '-b:a', '128k', '-f', 'ogg', 'pipe:1',
+    '-vn', '-af', 'volume=0.5', '-ac', '2', '-ar', '48000', '-c:a', 'libopus', '-b:a', '128k', '-f', 'ogg', 'pipe:1',
   ], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
   let disposed = false;
   let failureCode = '';
