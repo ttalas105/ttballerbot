@@ -2,6 +2,7 @@ import { VoiceError } from '../model.js';
 import { readFileSync, statSync } from 'node:fs';
 import { encode } from '@msgpack/msgpack';
 import { speechPcm } from './pcm.js';
+import { Readable } from 'node:stream';
 
 /** Fish streams a canonical 44-byte WAV header with sentinel lengths until EOF. */
 export function fishPcm(audio: Buffer): Buffer {
@@ -46,6 +47,73 @@ export class FishVoice {
     if (!['s2.1-pro-free', 's2.1-pro', 's2-pro', 'drama-3'].includes(model)) throw new VoiceError('The configured Fish model is invalid.', 'FISH_MODEL_CONFIG');
   }
   get usesReferenceAudio(): boolean { return typeof this.reference !== 'string'; }
+  /** Start after 120 ms of PCM is ready instead of buffering the entire utterance. */
+  async stream(text: string, signal: AbortSignal): Promise<Readable> {
+    signal.throwIfAborted();
+    const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(25000)]);
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    try {
+      const body = { text: text.slice(0, 120),
+        ...(typeof this.reference === 'string' ? { reference_id: this.reference } : { references: [this.reference] }),
+        format: 'pcm', sample_rate: 24000, latency: 'low', chunk_length: 100 };
+      const response = await this.fetcher('https://api.fish.audio/v1/tts', {
+        method: 'POST', headers: { Authorization: `Bearer ${this.key}`, 'Content-Type': this.usesReferenceAudio ? 'application/msgpack' : 'application/json', model: this.model },
+        body: this.usesReferenceAudio ? Buffer.from(encode(body)) : JSON.stringify(body), signal: requestSignal,
+      });
+      if (!response.ok) {
+        await response.body?.cancel();
+        throw new VoiceError(`Rajan’s voice service is unavailable (HTTP ${response.status}). No fallback was attempted.`, `FISH_HTTP_${response.status}`);
+      }
+      const type = (response.headers.get('content-type') || '').split(';')[0]!.trim().toLowerCase();
+      if (!response.body || !['application/octet-stream', 'audio/pcm', 'audio/x-pcm'].includes(type)) {
+        await response.body?.cancel(); throw new VoiceError('Fish returned an unexpected streaming format.', 'FISH_AUDIO_FORMAT');
+      }
+      reader = response.body.getReader();
+      const source = reader;
+      let pending = Buffer.alloc(0), total = 0, done = false;
+      const read = async () => {
+        requestSignal.throwIfAborted();
+        const chunk = await source.read(); done = chunk.done;
+        if (chunk.value) {
+          total += chunk.value.length;
+          if (total > 24000 * 2 * 12) throw new VoiceError('The reaction audio was too long.', 'FISH_AUDIO_LENGTH');
+          pending = Buffer.concat([pending, chunk.value]);
+        }
+      };
+      while (pending.length < 5760 && !done) await read();
+      if (!pending.length || (done && pending.length % 2)) throw new VoiceError('Fish returned incomplete speech.', 'FISH_AUDIO_LENGTH');
+      if (pending.toString('ascii', 0, 4) === 'RIFF') throw new VoiceError('Fish returned a WAV instead of streaming PCM.', 'FISH_AUDIO_FORMAT');
+      let input: Readable;
+      const abort = () => { void source.cancel().catch(() => {}); input.destroy(); };
+      input = Readable.from((async function* () {
+        try {
+          while (true) {
+            requestSignal.throwIfAborted();
+            const length = pending.length - pending.length % 2;
+            if (length) {
+              const stereo = Buffer.alloc(length * 4);
+              for (let i = 0; i < length; i += 2) {
+                const value = Math.round(pending.readInt16LE(i) * 0.8);
+                for (let j = 0; j < 8; j += 2) stereo.writeInt16LE(value, i * 4 + j);
+              }
+              pending = pending.subarray(length); yield stereo;
+            }
+            if (done) { if (pending.length) throw new VoiceError('Fish returned an incomplete audio frame.', 'FISH_AUDIO_LENGTH'); break; }
+            await read();
+          }
+        } finally { requestSignal.removeEventListener('abort', abort); await source.cancel().catch(() => {}); source.releaseLock(); }
+      })(), { objectMode: false, highWaterMark: 23040 });
+      requestSignal.addEventListener('abort', abort, { once: true });
+      input.once('close', () => { requestSignal.removeEventListener('abort', abort); void source.cancel().catch(() => {}); });
+      if (requestSignal.aborted) { input.destroy(); requestSignal.throwIfAborted(); }
+      return input;
+    } catch (error) {
+      await reader?.cancel().catch(() => {});
+      if (signal.aborted) throw signal.reason;
+      if (error instanceof VoiceError) throw error;
+      throw new VoiceError('Rajan’s streaming voice was interrupted.', requestSignal.aborted ? 'FISH_TIMEOUT' : 'FISH_NETWORK');
+    }
+  }
   async speak(text: string, signal: AbortSignal, style: 'conversation' | 'entrance' | 'wedding'): Promise<Buffer> {
     signal.throwIfAborted();
     const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(35000)]);

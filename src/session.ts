@@ -34,6 +34,7 @@ export class MusicSession {
   connection?: VoiceConnection;
   voice?: VoiceChannel;
   closed = false;
+  watching = false;
   private audio?: PreparedAudio;
   private controller?: AbortController;
   private generation = 0;
@@ -49,22 +50,22 @@ export class MusicSession {
   get effectPlaying(): boolean { return !!this.finishEffect; }
 
   /** Temporarily pause the queue, play an effect, then restore the same music resource. */
-  async playEffect(pcm: Buffer, signal?: AbortSignal, options: { loop?: boolean } = {}): Promise<void> {
-    if (this.closed || !this.connection || signal?.aborted) return;
-    if (!pcm.length || pcm.length % 4) throw new UserError('Sound effects need complete stereo audio frames.');
+  async playEffect(pcm: Buffer | Readable, signal?: AbortSignal, options: { loop?: boolean } = {}): Promise<void> {
+    if (this.closed || !this.connection || signal?.aborted) { if (pcm instanceof Readable) pcm.destroy(); return; }
+    if (Buffer.isBuffer(pcm) && (!pcm.length || pcm.length % 4)) throw new UserError('Sound effects need complete stereo audio frames.');
     this.stopEffect();
     const generation = this.generation;
     const wasPlaying = this.status === 'playing';
     if (wasPlaying) { this.player.pause(); this.status = 'paused'; }
     const effect = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Stop } });
     const chunks = options.loop ? (function* () { while (true) yield pcm; })() : [pcm];
-    const input = Readable.from(chunks, { objectMode: false, highWaterMark: 3840 });
+    const input = pcm instanceof Readable ? pcm : Readable.from(chunks, { objectMode: false, highWaterMark: 3840 });
     const resource = createAudioResource(input, { inputType: StreamType.Raw });
-    await new Promise<void>(resolve => {
+    await new Promise<void>((resolve, reject) => {
       let finished = false;
       const finish = () => {
         if (finished) return; finished = true;
-        clearTimeout(timeout); signal?.removeEventListener('abort', finish);
+        clearTimeout(timeout); signal?.removeEventListener('abort', finish); input.off('error', fail);
         this.finishEffect = undefined; effect.stop(true); input.destroy(); resource.playStream.destroy();
         if (!this.closed && this.connection?.state.status !== VoiceConnectionStatus.Destroyed) {
           this.connection?.subscribe(this.player);
@@ -72,15 +73,22 @@ export class MusicSession {
         }
         this.refresh(); resolve();
       };
+      const fail = (error: Error) => { if (finished) return; reject(error); finish(); };
       const timeout = setTimeout(finish, options.loop ? 75000 : 32000); timeout.unref();
       this.finishEffect = finish;
       effect.once(AudioPlayerStatus.Idle, finish);
-      effect.once('error', error => { logError('sound effect', error); finish(); });
+      effect.once('error', fail); input.once('error', fail);
       signal?.addEventListener('abort', finish, { once: true });
       this.connection!.subscribe(effect); effect.play(resource); this.refresh();
     });
   }
   stopEffect(): void { this.finishEffect?.(); }
+  holdForWatch(active: boolean): void {
+    this.watching = active; clearTimeout(this.idleTimer);
+    if (!active && !this.closed && !this.queue.current) {
+      this.idleTimer = setTimeout(() => this.close('The room is idle. See you next time.'), this.idleMs); this.idleTimer.unref();
+    }
+  }
 
   constructor(
     readonly text: GuildTextBasedChannel, private readonly youtube: YouTube,
@@ -197,8 +205,10 @@ export class MusicSession {
     const track = this.queue.current;
     if (!track) {
       this.status = 'idle';
-      this.idleTimer = setTimeout(() => this.close('The queue finished. See you next time.'), this.idleMs);
-      this.idleTimer.unref();
+      if (!this.watching) {
+        this.idleTimer = setTimeout(() => this.close('The queue finished. See you next time.'), this.idleMs);
+        this.idleTimer.unref();
+      }
       this.refresh();
       return;
     }
@@ -266,6 +276,7 @@ export class MusicSession {
   }
 
   async publish(): Promise<void> {
+    if (this.watching && !this.message && !this.queue.size) return;
     await this.panelSerial.run(async () => {
       const current = this.queue.current;
       const me = this.text.guild?.members.me;

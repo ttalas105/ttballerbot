@@ -8,6 +8,7 @@ import { Speech } from './speech.js';
 import { parseVoiceIntent, entranceLine, weddingLine, type Person, type VoiceDecision } from './intents.js';
 import { effectPcm } from './effects.js';
 import { VoiceMemory } from './memory.js';
+import type { ScreenReaction, WatchMode } from '../watch/frames.js';
 
 export interface VoiceActions { play(query: string, userId: string, signal: AbortSignal): Promise<string> }
 
@@ -26,6 +27,7 @@ export class HeyRajan {
   private lastRequest = new Map<string, number>();
   private execution?: AbortController;
   private executionUser?: string;
+  private reaction?: AbortController;
   private readonly memory = new VoiceMemory();
   private readonly speakingEnd = (userId: string) => {
     if (this.members.has(userId)) this.worker?.postMessage({ type: 'silence', userId });
@@ -98,7 +100,15 @@ export class HeyRajan {
     this.memory.remove(userId); this.lastRequest.delete(userId);
     this.worker?.postMessage({ type: 'remove', userId });
     if (this.active?.userId === userId || this.executionUser === userId) this.cancel();
-    if (!this.members.size) this.close('Listening is off.');
+    if (!this.members.size && !this.session.watching) this.close('Listening is off.');
+    else if (!this.members.size) {
+      clearTimeout(this.expiry);
+      const connection = this.session.connection;
+      connection?.receiver.speaking.off('end', this.speakingEnd);
+      if (connection && connection.state.status !== VoiceConnectionStatus.Destroyed) connection.rejoin({ ...connection.joinConfig, selfDeaf: true });
+      this.status = 'Voice listening is off. Screen reactions remain on.';
+      void this.publish().catch(logError.bind(null, 'voice panel'));
+    }
     else void this.publish().catch(logError.bind(null, 'voice panel'));
   }
   prune(): void {
@@ -107,6 +117,7 @@ export class HeyRajan {
     if (this.executionUser && !this.session.voice?.members.has(this.executionUser)) this.cancel();
   }
   cancel(): void {
+    this.reaction?.abort();
     this.generation++; this.active?.controller.abort(); this.active = undefined;
     this.execution?.abort(); this.execution = undefined; this.executionUser = undefined;
     for (const userId of this.members.keys()) this.worker?.postMessage({ type: 'cancel', userId });
@@ -121,6 +132,7 @@ export class HeyRajan {
   }
   private async wake(userId: string): Promise<void> {
     if (this.closed || !this.members.has(userId) || this.active || this.execution || this.session.effectPlaying) return;
+    this.reaction?.abort();
     const request = { userId, controller: new AbortController() }; this.active = request;
     this.status = `Heard “Hey Rajan” from ${this.people().find(person => person.id === userId)?.name || 'a listener'}.`;
     void this.publish().catch(logError.bind(null, 'voice panel'));
@@ -145,6 +157,7 @@ export class HeyRajan {
   }
   async execute(input: string | Buffer, userId: string, signal = new AbortController().signal): Promise<void> {
     if (this.closed || this.session.closed || !this.session.voice?.members.has(userId)) throw new UserError('Join the bot’s voice channel first.');
+    this.reaction?.abort();
     const local = typeof input === 'string' ? parseVoiceIntent(input, this.people(), userId) : undefined;
     if (local?.kind === 'stop') { this.cancel(); await this.publish(); return; }
     if (this.execution || (this.active && (typeof input === 'string' || this.active.userId !== userId))) throw new VoiceError('I’m handling another request. Use /hey mode:stop to cancel it.', 'VOICE_BUSY');
@@ -234,6 +247,29 @@ export class HeyRajan {
       if (this.execution === execution) { this.execution = undefined; this.executionUser = undefined; }
       this.rearm();
     }
+  }
+  async reactToStream(frames: string[], mode: WatchMode, history: ScreenReaction[], manual: boolean, userId: string, signal: AbortSignal): Promise<ScreenReaction | undefined> {
+    if (this.closed || this.session.closed || this.busy || this.reaction || !this.session.voice?.members.has(userId)) return;
+    const reaction = new AbortController(); this.reaction = reaction;
+    const combined = AbortSignal.any([signal, reaction.signal]);
+    const started = Date.now();
+    const freshness = setTimeout(() => reaction.abort(new VoiceError('That moment passed. Waiting for a fresh scene.', 'WATCH_STALE')), 12000);
+    freshness.unref();
+    const valid = () => !combined.aborted && !this.closed && !this.session.closed && !this.busy && !!this.session.voice?.members.has(userId);
+    try {
+      const decision = await this.speech.reactToFrames(frames, mode, history, manual, combined);
+      const visionMs = Date.now() - started;
+      if (!valid()) return;
+      if (!decision.react) return decision;
+      // Keep the room's music running while the AI reads the scene and prepares speech.
+      const audio = await this.speech.streamReaction(decision.reply, combined);
+      if (!valid()) { audio.destroy(); return; }
+      clearTimeout(freshness);
+      console.log(`${new Date().toISOString()} [spectator] visionMs=${visionMs} firstAudioMs=${Date.now() - started}`);
+      await this.session.playEffect(audio, combined);
+      if (!combined.aborted) return decision;
+    } catch (error) { if ((reaction.signal.reason as { code?: string })?.code === 'WATCH_STALE') throw reaction.signal.reason; if (!combined.aborted) throw error; }
+    finally { clearTimeout(freshness); if (this.reaction === reaction) this.reaction = undefined; this.rearm(); }
   }
   private report(error: unknown): void { logError('hey rajan', error); if (this.closed) return; this.status = userMessage(error); void this.publish().catch(logError.bind(null, 'voice panel')); }
   async publish(): Promise<void> {

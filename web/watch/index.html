@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rajan · Spectator</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script>
+</head>
+<body>
+<!-- THESIS: A shared-window control desk for friends in voice. The actual window preview owns the surface.
+OWN-WORLD: Existing ttballerbot deep green, mint and condensed display lettering. Plain task controls and honest states.
+STORY: Connect with a private Discord code, choose a visible window, hear Rajan react, stop sharing at any time.
+FIRST VIEWPORT: Left title and large preview; right pairing/settings column; stop and react controls directly beneath preview.
+FORM: Operate. Extension of the existing player identity; preview and control desk, not a new visual world.
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md -->
+<header class="masthead"><a href="/" aria-label="Rajan spectator home">ttballerbot<span> / spectator</span></a><span id="connection">Not connected</span></header>
+<main>
+  <div class="intro"><h1>Give Rajan a<br>front-row seat.</h1><p>Your game. Their stream. His unfiltered commentary.</p></div>
+  <div class="desk">
+    <section class="screen-area" aria-label="Shared window">
+      <div class="screen">
+        <video id="preview" autoplay muted playsinline hidden aria-label="Your selected window preview"></video>
+        <div id="empty"><svg width="52" height="52" viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="5" y="8" width="38" height="27" rx="3" stroke="currentColor" stroke-width="2"/><path d="M16 42h16M24 35v7M20 17l10 5-10 5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><h2>The best seat is empty.</h2><p>Connect to Discord, then choose a game, video,<br>or someone’s stream in a Discord pop-out.</p></div>
+        <span id="sharing-label" hidden>Sharing selected window</span>
+      </div>
+      <div class="screen-controls"><button id="choose" class="primary" disabled>Choose a window</button><button id="stop" class="danger" hidden>Stop sharing</button><button id="react" disabled>React now</button></div>
+      <p id="screen-error" class="error" role="alert" hidden></p>
+      <p id="status" role="status" aria-live="polite">Run /watch mode:start in your Discord voice channel to connect.</p>
+      <div class="last-reaction"><h2>Last reaction</h2><p id="reply">The mic is his. The moment is yours.</p></div>
+    </section>
+    <aside aria-label="Connection and reaction settings">
+      <form id="pair-form"><h2>Bring him into the call.</h2><p>Run <code>/watch mode:start</code> in Discord. Enter the private code here, on the computer running the bot.</p><label for="code">Six-digit connection code</label><div class="pair-fields"><input id="code" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" minlength="6" autocomplete="off" placeholder="000000" required><button id="connect" class="primary">Connect</button></div><p id="error" class="error" role="alert" hidden></p></form>
+      <div id="paired" hidden><h2>You’re in.</h2><p id="channel"></p><button id="disconnect" class="text-button">Disconnect</button></div>
+      <fieldset id="settings" disabled><legend>Set the mood.</legend><label for="mode">Reaction style</label><select id="mode"><option value="roast">Roast · ruthless sideline friend</option><option value="hype">Hype · personal cheer section</option><option value="commentary">Commentary · call the action</option></select><label for="interval">Check for a reaction</label><select id="interval"><option value="15">Every 15 seconds</option><option value="30" selected>Every 30 seconds</option><option value="60">Every minute</option><option value="0">Only when I click React now</option></select><p class="hint">A check isn’t a guaranteed comment. Rajan skips quiet moments and late replies. No thinking sounds.</p></fieldset>
+      <div class="sharing-info"><h2>You choose what he sees.</h2><p>Only images from your selected window go to Gemini. No stream audio or microphone. Frames aren’t saved locally.</p><p>Google’s free tier may use submitted images to improve its products. Rajan’s AI voice may swear.</p><p id="expiry">Sessions end after 30 minutes, or when you leave the call.</p></div>
+    </aside>
+  </div>
+</main>
+<footer><span>Rajan AI · same attitude, front-row access.</span><span>Keep this window open while sharing.</span></footer>
+</body></html>

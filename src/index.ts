@@ -1,4 +1,4 @@
-import { ActivityType, Client, Events, GatewayIntentBits, MessageFlags, type GuildMember, type GuildTextBasedChannel } from 'discord.js';
+import { ActionRowBuilder, ActivityType, ButtonBuilder, ButtonStyle, Client, Events, GatewayIntentBits, MessageFlags, type GuildMember, type GuildTextBasedChannel, type Message } from 'discord.js';
 import { config, requireDiscordConfig } from './config.js';
 import { help } from './commands.js';
 import { MusicSession, requireVoice } from './session.js';
@@ -12,6 +12,8 @@ import { HeyRajan } from './voice/assistant.js';
 import { Speech } from './voice/speech.js';
 import { configuredFishVoice } from './voice/fish.js';
 import { loadErrorAudio } from './voice/feedback.js';
+import { WatchManager } from './watch/manager.js';
+import { WatchServer } from './watch/server.js';
 
 requireDiscordConfig();
 const client = new Client({
@@ -28,14 +30,22 @@ const youtube = new YouTube(config.ytdlp, config.ffmpeg);
 const sessions = new Map<string, MusicSession>();
 const assistants = new Map<string, HeyRajan>();
 const fish = configuredFishVoice(config);
-const speech = new Speech(config.geminiKey, config.transcriptionModel, config.speechModel, config.announcerVoice, undefined, fish, loadErrorAudio(config.voiceErrorAudio));
+const speech = new Speech(config.geminiKey, config.transcriptionModel, config.speechModel, config.announcerVoice, undefined, fish, loadErrorAudio(config.voiceErrorAudio), config.watchModel);
 const importing = new Map<string, { controller: AbortController; voiceId: string }>();
+const watchers = new WatchManager();
+let watchServer: WatchServer | undefined;
+if (config.watchEnabled) {
+  const server = new WatchServer(watchers);
+  try { await server.start(config.watchPort); watchServer = server; console.log(`Rajan spectator companion: ${server.url}`); }
+  catch (error) { logError('spectator startup', error); }
+}
 
 function sessionFor(member: GuildMember, channel: GuildTextBasedChannel): MusicSession {
   let session = sessions.get(member.guild.id);
   if (!session) {
     session = new MusicSession(channel, youtube, config.maxQueue, config.idleMs, () => {
       if (sessions.get(member.guild.id) === session) {
+        watchers.stop(member.guild.id);
         assistants.get(member.guild.id)?.close(); assistants.delete(member.guild.id);
         sessions.delete(member.guild.id);
       }
@@ -77,9 +87,40 @@ async function voiceAction(member: GuildMember, channel: GuildTextBasedChannel, 
   });
   if (mode === 'effect' || mode === 'ask') {
     try { await assistant!.execute(prompt || '', member.id); }
-    finally { if (!assistant!.busy && !assistant!.members.size && !session.queue.size) session.close('Assistant request finished.'); }
+    finally { if (!assistant!.busy && !assistant!.members.size && !session.queue.size && !watchers.active(member.guild.id)) session.close('Assistant request finished.'); }
   }
   return mode === 'on' ? 'Enabled for your voice for 15 minutes. Say “Hey Rajan”, wait for the chime, then ask anything, request music, or an effect. Wake again for each request. /hey mode:off opts out.' : 'Request complete.';
+}
+
+async function watchAction(member: GuildMember, channel: GuildTextBasedChannel, mode: string): Promise<string> {
+  if (mode === 'stop') {
+    sessions.get(member.guild.id)?.assertMember(member);
+    watchers.stop(member.guild.id); return 'Screen reactions stopped.';
+  }
+  if (!watchServer) throw new UserError('The screen-sharing companion is not enabled on this host.');
+  if (!speech.configured) throw new UserError('Screen reactions need the host’s Gemini key.');
+  if (watchers.active(member.guild.id)) throw new UserError('A spectator session is already open. Use /watch mode:stop first.');
+  await voiceAction(member, channel, 'watch');
+  const assistant = assistants.get(member.guild.id)!, session = assistant.session;
+  session.assertMember(member); const voiceId = session.voice!.id;
+  let notice: Message | undefined;
+  const ticket = watchers.create({ guildId: member.guild.id, userId: member.id, channelName: session.voice!.name,
+    valid: () => !session.closed && !assistant.ended && session.voice?.id === voiceId && !!session.voice.members.has(member.id),
+    busy: () => assistant.busy,
+    react: (frames, mode, history, manual, signal) => assistant.reactToStream(frames, mode, history, manual, member.id, signal),
+    onStop: () => {
+      session.holdForWatch(false);
+      void notice?.delete().catch(error => { if ((error as {code?: number}).code !== 10008) logError('spectator notice', error); });
+      if (!session.closed && !assistant.members.size && !assistant.busy && !session.queue.size) session.close('Screen reactions stopped.');
+    },
+  });
+  session.holdForWatch(true);
+  try {
+    notice = await channel.send({ content: `**Rajan spectator** · <@${member.id}> is connecting a shared window.\nSelected images go to Gemini for AI reactions. No stream audio or microphone is captured; frames are not saved locally. Google’s free tier may use submitted images to improve its products. Reactions use Rajan’s AI voice and may contain profanity.`,
+      components: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`ttw:${ticket.id}:stop`).setLabel('Stop watching').setStyle(ButtonStyle.Danger))], allowedMentions: { parse: [] } });
+    if (watchers.id(member.guild.id) !== ticket.id) { await notice.delete(); throw new UserError('You left voice before pairing. Join again and use /watch mode:start.'); }
+  } catch (error) { watchers.stop(member.guild.id); throw error; }
+  return `Open ${watchServer.url} **on the computer running this bot** and enter **${ticket.code}** within two minutes. Then select the game/video window, or a friend’s Discord stream pop-out.\nChoose Roast, Hype or Commentary and a reaction frequency. The connection lasts up to 30 minutes; stopping the share cancels pending reactions.`;
 }
 
 async function play(member: GuildMember, channel: GuildTextBasedChannel, query: string, signal?: AbortSignal): Promise<string> {
@@ -171,6 +212,13 @@ client.on(Events.InteractionCreate, interaction => {
         return;
       }
       if (interaction.isButton()) {
+        if (interaction.customId.startsWith('ttw:')) {
+          const [, id] = interaction.customId.split(':');
+          const session = getSession(interaction.guildId); session.assertMember(interaction.member);
+          if (watchers.id(interaction.guildId) !== id) throw new UserError('That spectator session has ended.');
+          await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+          watchers.stop(interaction.guildId); await interaction.editReply('Screen reactions stopped.'); return;
+        }
         if (interaction.customId.startsWith('tth:')) {
           const [, id, mode] = interaction.customId.split(':');
           const assistant = assistants.get(interaction.guildId);
@@ -202,6 +250,11 @@ client.on(Events.InteractionCreate, interaction => {
       }
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const name = interaction.commandName;
+      if (name === 'watch') {
+        const channel = interaction.channel;
+        if (!channel || channel.isDMBased() || !channel.isTextBased()) throw new UserError('Use a server text channel.');
+        await interaction.editReply(await watchAction(interaction.member, channel, interaction.options.getString('mode', true))); return;
+      }
       if (name === 'hey' || name === 'effect' || name === 'ask') {
         const channel = interaction.channel;
         if (!channel || channel.isDMBased() || !channel.isTextBased()) throw new UserError('Use a server text channel.');
@@ -272,6 +325,7 @@ client.on(Events.VoiceStateUpdate, (_oldState, state) => {
   }
   session.checkListeners();
   assistants.get(state.guild.id)?.prune();
+  watchers.prune();
 });
 client.once(Events.ClientReady, ready => {
   console.log(`ttballerbot online as ${ready.user.tag} in ${ready.guilds.cache.size} server(s).`);
@@ -284,6 +338,7 @@ client.once(Events.ClientReady, ready => {
 });
 client.on(Events.Error, error => logError('Discord client', error));
 for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => {
+  watchers.close(); void watchServer?.close();
   for (const session of sessions.values()) session.close('Bot is restarting.');
   setTimeout(() => { client.destroy(); process.exit(0); }, 1500).unref();
 });

@@ -42,6 +42,18 @@ test('effects restore the same music resource and stop cannot resurrect playback
   } finally { h.session.close('cleanup'); }
 });
 
+test('streaming speech cancellation destroys its source and restores music; stream errors are reported', async () => {
+  const h = harness();
+  h.session.connection = { state: { status: VoiceConnectionStatus.Ready }, subscribe: () => {}, destroy: () => {} } as unknown as VoiceConnection;
+  try {
+    h.session.add([track('a')]); await attachAudio(h, 0, 10); h.session.status = 'playing';
+    const input = new PassThrough(), controller = new AbortController(); input.write(Buffer.alloc(23040));
+    const played = h.session.playEffect(input, controller.signal); assert.equal(h.session.status, 'paused');
+    controller.abort(); await played; assert.equal(input.destroyed, true); assert.equal(h.session.status, 'playing');
+    const failed = new PassThrough(); const pending = h.session.playEffect(failed); const rejected = assert.rejects(pending, /stream failed/);
+    failed.destroy(new Error('stream failed')); await rejected; assert.equal(h.session.status, 'playing');
+  } finally { h.session.close('cleanup'); }
+});
 test('an effect does not unpause music that was already paused', async () => {
   const h = harness();
   h.session.connection = { state: { status: VoiceConnectionStatus.Ready }, subscribe: () => {}, destroy: () => {} } as unknown as VoiceConnection;

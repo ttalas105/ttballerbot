@@ -1,0 +1,253 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-03T19:15:06.385Z",
+  "title": "Design System: Rajan spectator",
+  "extensions": {
+    "colorMeta": {
+      "bg": {
+        "role": "neutral",
+        "displayName": "Deep green",
+        "tonalRamp": [
+          "oklch(15% 0.0183 176.73)",
+          "oklch(26% 0.0183 176.73)",
+          "oklch(38% 0.0183 176.73)",
+          "oklch(49% 0.0183 176.73)",
+          "oklch(61% 0.0183 176.73)",
+          "oklch(72% 0.0183 176.73)",
+          "oklch(84% 0.0183 176.73)",
+          "oklch(95% 0.0183 176.73)"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Raised green",
+        "tonalRamp": [
+          "oklch(15% 0.0321 168.52)",
+          "oklch(26% 0.0321 168.52)",
+          "oklch(38% 0.0321 168.52)",
+          "oklch(49% 0.0321 168.52)",
+          "oklch(61% 0.0321 168.52)",
+          "oklch(72% 0.0321 168.52)",
+          "oklch(84% 0.0321 168.52)",
+          "oklch(95% 0.0321 168.52)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Pale mint white",
+        "tonalRamp": [
+          "oklch(15% 0.0189 162.95)",
+          "oklch(26% 0.0189 162.95)",
+          "oklch(38% 0.0189 162.95)",
+          "oklch(49% 0.0189 162.95)",
+          "oklch(61% 0.0189 162.95)",
+          "oklch(72% 0.0189 162.95)",
+          "oklch(84% 0.0189 162.95)",
+          "oklch(95% 0.0189 162.95)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Quiet sage",
+        "tonalRamp": [
+          "oklch(15% 0.0403 159.12)",
+          "oklch(26% 0.0403 159.12)",
+          "oklch(38% 0.0403 159.12)",
+          "oklch(49% 0.0403 159.12)",
+          "oklch(61% 0.0403 159.12)",
+          "oklch(72% 0.0403 159.12)",
+          "oklch(84% 0.0403 159.12)",
+          "oklch(95% 0.0403 159.12)"
+        ]
+      },
+      "mint": {
+        "role": "primary",
+        "displayName": "Mint",
+        "tonalRamp": [
+          "oklch(15% 0.1169 159.38)",
+          "oklch(26% 0.1169 159.38)",
+          "oklch(38% 0.1169 159.38)",
+          "oklch(49% 0.1169 159.38)",
+          "oklch(61% 0.1169 159.38)",
+          "oklch(72% 0.1169 159.38)",
+          "oklch(84% 0.1169 159.38)",
+          "oklch(95% 0.1169 159.38)"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Green divider",
+        "tonalRamp": [
+          "oklch(15% 0.0384 168.05)",
+          "oklch(26% 0.0384 168.05)",
+          "oklch(38% 0.0384 168.05)",
+          "oklch(49% 0.0384 168.05)",
+          "oklch(61% 0.0384 168.05)",
+          "oklch(72% 0.0384 168.05)",
+          "oklch(84% 0.0384 168.05)",
+          "oklch(95% 0.0384 168.05)"
+        ]
+      },
+      "danger": {
+        "role": "secondary",
+        "displayName": "Soft peach",
+        "tonalRamp": [
+          "oklch(15% 0.0898 29.23)",
+          "oklch(26% 0.0898 29.23)",
+          "oklch(38% 0.0898 29.23)",
+          "oklch(49% 0.0898 29.23)",
+          "oklch(61% 0.0898 29.23)",
+          "oklch(72% 0.0898 29.23)",
+          "oklch(84% 0.0898 29.23)",
+          "oklch(95% 0.0898 29.23)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Condensed display",
+        "purpose": "Large page headline; actual local face is registered as Barlow."
+      },
+      "title": {
+        "displayName": "Section title",
+        "purpose": "Major settings and preview headings."
+      },
+      "body": {
+        "displayName": "Native body",
+        "purpose": "General reading copy and controls."
+      },
+      "label": {
+        "displayName": "Form label",
+        "purpose": "Explicit labels above inputs and selects."
+      },
+      "supporting": {
+        "displayName": "Supporting copy",
+        "purpose": "Hints and provider disclosures."
+      }
+    },
+    "shadows": [],
+    "motion": [],
+    "breakpoints": [
+      {
+        "name": "compact-desktop",
+        "value": "1000px"
+      },
+      {
+        "name": "stacked",
+        "value": "760px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Choose a window uses the implemented control state treatment.",
+      "html": "<button class=\"ds-button-primary\">Choose a window</button>",
+      "css": ".ds-button-primary{min-height:46px;border:1px solid var(--line,#385449);border-radius:7px;padding:10px 18px;background:var(--surface,#152b23);color:var(--ink,#f0fff7);font:600 16px/1.5 \"Segoe UI\",sans-serif;cursor:pointer;background:var(--mint,#88e8b5);color:var(--bg,#0b1714);border-color:var(--mint,#88e8b5);}.ds-button-primary:hover:not(:disabled){background:#adf4cc}.ds-button-primary:focus-visible{outline:3px solid var(--mint,#88e8b5);outline-offset:4px}.ds-button-primary:disabled{opacity:.45;cursor:not-allowed}"
+    },
+    {
+      "name": "Secondary action",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "React now uses the implemented control state treatment.",
+      "html": "<button class=\"ds-button-secondary\">React now</button>",
+      "css": ".ds-button-secondary{min-height:46px;border:1px solid var(--line,#385449);border-radius:7px;padding:10px 18px;background:var(--surface,#152b23);color:var(--ink,#f0fff7);font:600 16px/1.5 \"Segoe UI\",sans-serif;cursor:pointer;}.ds-button-secondary:hover:not(:disabled){background:#254335}.ds-button-secondary:focus-visible{outline:3px solid var(--mint,#88e8b5);outline-offset:4px}.ds-button-secondary:disabled{opacity:.45;cursor:not-allowed}"
+    },
+    {
+      "name": "Stop action",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Stop sharing uses the implemented control state treatment.",
+      "html": "<button class=\"ds-button-danger\">Stop sharing</button>",
+      "css": ".ds-button-danger{min-height:46px;border:1px solid var(--line,#385449);border-radius:7px;padding:10px 18px;background:var(--surface,#152b23);color:var(--ink,#f0fff7);font:600 16px/1.5 \"Segoe UI\",sans-serif;cursor:pointer;color:var(--danger,#ffb4a8);border-color:#8f6258;}.ds-button-danger:hover:not(:disabled){background:#38251f}.ds-button-danger:focus-visible{outline:3px solid var(--mint,#88e8b5);outline-offset:4px}.ds-button-danger:disabled{opacity:.45;cursor:not-allowed}"
+    },
+    {
+      "name": "Text action",
+      "kind": "button",
+      "refersTo": "button-text",
+      "description": "Disconnect uses the implemented control state treatment.",
+      "html": "<button class=\"ds-button-text\">Disconnect</button>",
+      "css": ".ds-button-text{min-height:46px;border:1px solid var(--line,#385449);border-radius:7px;padding:10px 18px;background:var(--surface,#152b23);color:var(--ink,#f0fff7);font:600 16px/1.5 \"Segoe UI\",sans-serif;cursor:pointer;border:0;padding:0;min-height:36px;background:none;color:var(--mint,#88e8b5);}.ds-button-text:hover:not(:disabled){background:#254335}.ds-button-text:focus-visible{outline:3px solid var(--mint,#88e8b5);outline-offset:4px}.ds-button-text:disabled{opacity:.45;cursor:not-allowed}"
+    },
+    {
+      "name": "Connection code",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "A labeled six-digit field with tabular numerals.",
+      "html": "<label class=\"ds-code-label\" for=\"ds-code\">Six-digit connection code</label><input class=\"ds-code\" id=\"ds-code\" inputmode=\"numeric\" pattern=\"[0-9]{6}\" maxlength=\"6\" minlength=\"6\" autocomplete=\"off\" placeholder=\"000000\" required>",
+      "css": ".ds-code-label{display:block;font:600 14px/1.5 \"Segoe UI\",sans-serif;color:var(--ink,#f0fff7);margin:20px 0 8px;}.ds-code{min-height:46px;width:100%;border:1px solid var(--line,#385449);border-radius:7px;padding:10px 12px;color:var(--ink,#f0fff7);background:var(--bg,#0b1714);font:16px/1.5 \"Segoe UI\",sans-serif;min-width:0;font-variant-numeric:tabular-nums;font-size:20px;letter-spacing:.12em}.ds-code::placeholder{color:#8caa9b}.ds-code:focus-visible{outline:3px solid var(--mint,#88e8b5);outline-offset:4px}"
+    },
+    {
+      "name": "Reaction settings",
+      "kind": "input",
+      "refersTo": "select",
+      "description": "A labeled native select retains familiar browser behavior.",
+      "html": "<label class=\"ds-select-label\" for=\"ds-mode\">Reaction style</label><select class=\"ds-select\" id=\"ds-mode\"><option>Roast · ruthless sideline friend</option><option>Hype · personal cheer section</option><option>Commentary · call the action</option></select>",
+      "css": ".ds-select-label{display:block;font:600 14px/1.5 \"Segoe UI\",sans-serif;color:var(--ink,#f0fff7);margin:20px 0 8px;}.ds-select{min-height:46px;width:100%;border:1px solid var(--line,#385449);border-radius:7px;padding:10px 12px;color:var(--ink,#f0fff7);background:var(--bg,#0b1714);font:16px/1.5 \"Segoe UI\",sans-serif;padding-right:8px;cursor:pointer}.ds-select:focus-visible{outline:3px solid var(--mint,#88e8b5);outline-offset:4px}"
+    },
+    {
+      "name": "Masthead",
+      "kind": "nav",
+      "description": "The product link and current connection state share a quiet divider.",
+      "html": "<header class=\"ds-masthead\"><a class=\"ds-home\" href=\"#\" aria-label=\"Rajan spectator home\">ttballerbot<span class=\"ds-suffix\"> / spectator</span></a><span class=\"ds-connection\">Not connected</span></header>",
+      "css": ".ds-masthead{min-height:88px;display:flex;align-items:center;justify-content:space-between;gap:20px;border-bottom:1px solid var(--line,#385449);font:600 14px/1.5 \"Segoe UI\",sans-serif;color:var(--ink,#f0fff7)}.ds-home{color:inherit;text-decoration:none}.ds-suffix{color:var(--muted,#bddbc9);font-weight:400}.ds-connection{color:var(--muted,#bddbc9);font-size:13px;max-width:42%;text-align:right}.ds-home:focus-visible{outline:3px solid var(--mint,#88e8b5);outline-offset:4px}"
+    },
+    {
+      "name": "Empty window preview",
+      "kind": "custom",
+      "refersTo": "preview",
+      "description": "The preview well presents instructions until a real selected window is available.",
+      "html": "<div class=\"ds-screen\"><div class=\"ds-empty\"><svg class=\"ds-screen-icon\" width=\"52\" height=\"52\" viewBox=\"0 0 48 48\" fill=\"none\" aria-hidden=\"true\"><rect x=\"5\" y=\"8\" width=\"38\" height=\"27\" rx=\"3\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M16 42h16M24 35v7M20 17l10 5-10 5z\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\"/></svg><h2 class=\"ds-screen-title\">The best seat is empty.</h2><p class=\"ds-screen-copy\">Connect to Discord, then choose a game, video,<br>or someone’s stream in a Discord pop-out.</p></div></div>",
+      "css": ".ds-screen{aspect-ratio:16/9;position:relative;background:var(--surface,#152b23);border-radius:12px;overflow:hidden;display:grid;place-items:center;text-align:center}.ds-empty{padding:24px}.ds-screen-icon{color:var(--mint,#88e8b5);margin-bottom:18px}.ds-screen-title{font:700 32px/1.05 Barlow,\"Segoe UI\",sans-serif;color:var(--ink,#f0fff7);margin:0 0 12px;text-wrap:balance;overflow-wrap:anywhere}.ds-screen-copy{font:14px/1.5 \"Segoe UI\",sans-serif;color:var(--muted,#bddbc9);margin:0;overflow-wrap:anywhere}@media(max-width:760px){.ds-screen{aspect-ratio:4/3}.ds-empty{padding:18px}.ds-screen-title{font-size:28px}.ds-screen-copy br{display:none}}"
+    },
+    {
+      "name": "Inline error",
+      "kind": "custom",
+      "description": "An alert expands beneath the control that needs correction.",
+      "html": "<p class=\"ds-error\" role=\"alert\">That code expired or was already used. Run /watch mode:start again.</p>",
+      "css": ".ds-error{background:#38251f;color:#ffd3ca;border-radius:7px;padding:16px;margin:24px 0;font:14px/1.5 \"Segoe UI\",sans-serif;overflow-wrap:anywhere}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The shared-window control desk",
+    "overview": "This scoped system records the implementation in `index.html`, `style.css`, and `app.js`. It extends the existing ttballerbot player identity: deep green surfaces, mint actions, pale text, and condensed Barlow headlines. The project-root `DESIGN.md` remains the authority for the Discord player; these rules describe the local spectator companion.\n\nThe companion has a quiet, practical control surface with a large window preview and friendly display typography. Familiar browser controls and plain status text carry operational information. It uses flat color, real preview content, and clear boundaries rather than visual activity to imply that work is happening.",
+    "keyCharacteristics": [
+      "Deep green layers with mint actions and focus indicators.",
+      "Condensed Barlow headings with native sans-serif controls and supporting copy.",
+      "A dominant, uncropped window preview beside compact settings on desktop.",
+      "Plain text states and immediate, visible capture controls."
+    ],
+    "rules": [
+      {
+        "name": "The State Has Words Rule",
+        "body": "Color supports status and errors; visible text names the state or corrective action.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two Voices Rule",
+        "body": "Barlow carries the major headings; native sans-serif carries controls, status, and reading copy.",
+        "section": "typography"
+      },
+      {
+        "name": "The Quiet Surface Rule",
+        "body": "Use tonal separation and rules for structure; reserve visible changes for actual interaction or application state.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** retain the existing green and mint identity when extending this companion.",
+      "**Do** keep controls close to the preview they operate and preserve the uncropped window image.",
+      "**Do** give status, errors, and provider disclosures readable text and honest state changes.",
+      "**Do** preserve visible keyboard focus and native disabled behavior.",
+      "**Do** allow headings, control rows, and long errors to wrap on narrow screens."
+    ],
+    "donts": [
+      "**Don't** replace real preview content with fabricated activity or progress graphics.",
+      "**Don't** add decorative motion or thinking indicators to imply a reaction is guaranteed.",
+      "**Don't** rely on color alone to communicate connection, sharing, or failure states.",
+      "**Don't** apply this companion's browser layout rules to the Discord player's native controls."
+    ]
+  }
+}

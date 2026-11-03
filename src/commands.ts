@@ -22,6 +22,9 @@ export const commands = [
     .addStringOption(option => option.setName('prompt').setDescription('Tell me a joke, play some J Cole, announce Tyrone like a wedding...').setRequired(true).setMaxLength(500)),
   command('effect', 'Play a sound effect or AI entrance without enabling voice listening')
     .addStringOption(option => option.setName('prompt').setDescription('dramatic soundtrack, air horn, announce <name> like a wedding or wrestling entrance').setRequired(true).setMaxLength(300)),
+  command('watch', 'Let Rajan react to a selected game, video or Discord stream window')
+    .addStringOption(option => option.setName('mode').setDescription('Start or stop the screen-sharing companion').setRequired(true)
+      .addChoices({ name: 'Start spectator', value: 'start' }, { name: 'Stop spectator', value: 'stop' })),
   command('help', 'How to use ttballerbot'),
 ];
 
@@ -43,4 +46,5 @@ export const help = [
   'Wake again for each request. Your last 4 turns provide per-person context for 10 minutes; opt-out clears it.',
   '`/hey mode:off` opts you out. `/hey mode:alloff` stops all listening. `/hey mode:stop` cancels a response.',
   '`/ask prompt:<request>` works without voice listening. `/effect prompt:air horn` is a shortcut for effects.',
+  '`/watch mode:start` pairs a window-sharing companion on the bot’s computer. Any game, video or visible Discord stream works. `/watch mode:stop` ends it.',
 ].join('\n');

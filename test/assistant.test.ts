@@ -9,6 +9,8 @@ import type { ConversationTurn } from '../src/voice/memory.js';
 import type { VoiceDecision } from '../src/voice/intents.js';
 import { VoiceError } from '../src/model.js';
 import { effectPcm } from '../src/voice/effects.js';
+import { Readable } from 'node:stream';
+import type { ScreenReaction } from '../src/watch/frames.js';
 
 function harness(t: TestContext) {
   let now = 10000;
@@ -25,7 +27,8 @@ function harness(t: TestContext) {
   const message = { edit: async (payload: Parameters<typeof capturePanel>[0]) => capturePanel(payload) };
   const session = { closed: false, id: 'session', effectPlaying: false, queue: { size: 1 }, serial: new SerialExecutor(),
     text: { send: async (payload: Parameters<typeof capturePanel>[0]) => capturePanel(payload) }, voice: { members: new Map(['1', '2'].map(id => [id, { id, displayName: id === '1' ? 'Sushi' : 'Jason', user: { username: id, bot: false } }])) },
-    assertMember() {}, playEffect: async (pcm: Buffer, signal?: AbortSignal, options?: { loop?: boolean }) => {
+    assertMember() {}, playEffect: async (pcm: Buffer | Readable, signal?: AbortSignal, options?: { loop?: boolean }) => {
+      if (pcm instanceof Readable) { const chunks: Buffer[] = []; for await (const chunk of pcm) chunks.push(Buffer.from(chunk)); pcm = Buffer.concat(chunks); }
       if (!options?.loop) { audioEvents.push('reply'); outputs.push(pcm); return; }
       const sound = { signal, stopped: false }; thinkingSounds.push(sound); audioEvents.push('thinking');
       session.effectPlaying = true;
@@ -44,6 +47,8 @@ function harness(t: TestContext) {
   };
   const speech = {
     configured: true,
+    reactToFrames: async (_frames: string[], _mode: unknown, _history: unknown, _manual: boolean, _signal: AbortSignal): Promise<ScreenReaction> => ({ react: true, event: 'A visible moment.', reply: 'What a fucking play.' }),
+    streamReaction: async (_text: string, _signal: AbortSignal): Promise<Readable> => Readable.from([Buffer.alloc(19200)]),
     errorAudio: undefined as Buffer | undefined,
     understand: async (input: string | Buffer, _people: unknown, _userId: string, history: ConversationTurn[]): Promise<VoiceDecision> => {
       requests.push({ input, history }); return { transcript: String(input), intent: { kind: 'say', reply: history.length ? 'Another joke.' : 'First joke.' } };
@@ -60,6 +65,35 @@ function harness(t: TestContext) {
   return { assistant, session, speech, outputs, controls, plays, voices, requests, workerMessages, thinkingSounds, audioEvents, descriptions, tick: () => { now += 2100; } };
 }
 
+test('spectator reactions stream without a pulse or a conversation-history entry', async t => {
+  const h = harness(t);
+  const result = await h.assistant.reactToStream([], 'roast', [], true, '1', new AbortController().signal);
+  assert.equal(result?.react, true); assert.deepEqual(h.audioEvents, ['reply']); assert.equal(h.thinkingSounds.length, 0);
+  await h.assistant.execute('hello', '1'); assert.deepEqual(h.requests[0]?.history, []);
+});
+test('a new human request cancels pending vision and late AI output never plays', async t => {
+  const h = harness(t); let resolve!: (value: ScreenReaction) => void, visionSignal!: AbortSignal;
+  h.speech.reactToFrames = async (_f, _m, _h, _manual, signal) => { visionSignal = signal; return new Promise(done => { resolve = done; }); };
+  const pending = h.assistant.reactToStream([], 'hype', [], true, '1', new AbortController().signal);
+  await h.assistant.execute('air horn', '2'); assert.equal(visionSignal.aborted, true);
+  resolve({ react: true, event: 'Late scene.', reply: 'Late reply.' }); await pending;
+  assert.equal(h.outputs.length, 1); assert.deepEqual(h.outputs[0], effectPcm('airhorn')); assert.equal(h.thinkingSounds.length, 0);
+});
+test('leaving voice during synthesis discards and destroys the buffered speech stream', async t => {
+  const h = harness(t); let resolve!: (value: Readable) => void;
+  h.speech.streamReaction = async () => new Promise(done => { resolve = done; });
+  const pending = h.assistant.reactToStream([], 'roast', [], true, '1', new AbortController().signal);
+  await new Promise(done => setImmediate(done)); h.session.voice.members.delete('1');
+  const stream = Readable.from([Buffer.alloc(19200)]); resolve(stream); await pending;
+  assert.equal(stream.destroyed, true); assert.equal(h.outputs.length, 0);
+});
+test('spectator freshness deadline cancels generation without pulse or error audio', async t => {
+  const h = harness(t); t.mock.timers.enable({ apis: ['setTimeout'] });
+  h.speech.reactToFrames = async (_f, _m, _h, _manual, signal) => new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
+  const pending = h.assistant.reactToStream([], 'roast', [], true, '1', new AbortController().signal);
+  const rejected = assert.rejects(pending, { code: 'WATCH_STALE' }); t.mock.timers.tick(12000); await rejected;
+  assert.equal(h.outputs.length, 0); assert.equal(h.thinkingSounds.length, 0); assert.equal(h.assistant.busy, false);
+});
 test('reported music/wedding/joke requests work, and a follow-up remembers only its speaker', async t => {
   const h = harness(t);
   await h.assistant.execute('play some j cole', '1');

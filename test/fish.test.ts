@@ -7,6 +7,29 @@ import { wav } from '../src/voice/capture.js';
 
 const voiceId = '1234567890abcdef1234567890abcdef';
 const signal = () => new AbortController().signal;
+test('reaction audio starts before EOF, uses low latency and preserves split PCM samples', async () => {
+  let source!: ReadableStreamDefaultController<Uint8Array>, canceled = false;
+  const pcm = Buffer.alloc(5762); for (let i = 0; i < pcm.length; i += 2) pcm.writeInt16LE(1000, i);
+  const fish = new FishVoice('key', voiceId, undefined, async (_url, init) => {
+    const body = JSON.parse(String(init!.body)); assert.equal(body.format, 'pcm'); assert.equal(body.latency, 'low');
+    assert.equal((init!.headers as Record<string,string>).model, 's2.1-pro-free');
+    return new Response(new ReadableStream({ start(controller) { source = controller; controller.enqueue(pcm.subarray(0, 5761)); }, cancel() { canceled = true; } }),
+      { headers: { 'content-type': 'application/octet-stream' } });
+  });
+  const stream = await fish.stream('What a fucking shot.', signal());
+  const iterator = stream[Symbol.asyncIterator](); const first = await iterator.next();
+  assert.equal(first.done, false); assert.equal(first.value.length, 23040); assert.equal(first.value.readInt16LE(0), 800);
+  source.enqueue(pcm.subarray(5761)); source.close();
+  const next = await iterator.next(); assert.equal(next.value.length, 8); assert.equal(next.value.readInt16LE(0), 800);
+  assert.equal((await iterator.next()).done, true); assert.equal(canceled, false);
+});
+test('stopping a buffered reaction cancels the provider even before playback starts', async () => {
+  let canceled = false;
+  const fish = new FishVoice('key', voiceId, undefined, async () => new Response(new ReadableStream({ start(c) { c.enqueue(new Uint8Array(6000)); }, cancel() { canceled = true; } }), { headers: { 'content-type': 'application/octet-stream' } }));
+  const controller = new AbortController(); const stream = await fish.stream('Hello', controller.signal);
+  controller.abort(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(stream.destroyed, true); assert.equal(canceled, true);
+});
 test('reference configuration never silently substitutes a voice when files are missing or conflicting', () => {
   const settings = { fishKey: 'key', fishReferenceId: '', fishReferenceAudio: '', fishReferenceText: '', fishModel: 's2.1-pro-free' };
   assert.equal(configuredFishVoice(settings), undefined);
