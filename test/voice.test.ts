@@ -145,7 +145,7 @@ test('Gemini requests contain only the bounded command and use stateless generat
   let request: Record<string, any> = {};
   const speech = new Speech('test-key', undefined, undefined, undefined, async (url, init) => {
     request = JSON.parse(String(init?.body));
-    assert.match(String(url), /\/models\/gemini-3\.1-flash-lite:generateContent$/);
+    assert.match(String(url), /\/models\/gemini-3\.5-flash-lite:generateContent$/);
     assert.equal((init?.headers as Record<string, string>)['x-goog-api-key'], 'test-key');
     return Response.json({ candidates: [{ content: { parts: [{ thought: true, text: 'hidden' }, { text: 'air horn' }] } }] });
   });

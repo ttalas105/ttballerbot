@@ -29,7 +29,7 @@ export const config = {
   ffmpeg: process.env.FFMPEG_PATH || 'ffmpeg',
   heyEnabled: process.env.ENABLE_HEY_BALLER === 'true',
   geminiKey: process.env.GEMINI_API_KEY || '',
-  transcriptionModel: process.env.VOICE_TRANSCRIPTION_MODEL || 'gemini-3.1-flash-lite',
+  transcriptionModel: process.env.VOICE_TRANSCRIPTION_MODEL || 'gemini-3.5-flash-lite',
   speechModel: process.env.VOICE_SPEECH_MODEL || 'gemini-3.8-flash-tts',
   announcerVoice: process.env.VOICE_ANNOUNCER || 'Fenrir',
   voiceErrorAudio: process.env.VOICE_ERROR_AUDIO || '',
