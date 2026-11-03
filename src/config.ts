@@ -32,6 +32,7 @@ export const config = {
   transcriptionModel: process.env.VOICE_TRANSCRIPTION_MODEL || 'gemini-3.1-flash-lite',
   speechModel: process.env.VOICE_SPEECH_MODEL || 'gemini-3.8-flash-tts',
   announcerVoice: process.env.VOICE_ANNOUNCER || 'Fenrir',
+  voiceErrorAudio: process.env.VOICE_ERROR_AUDIO || '',
   fishKey: process.env.FISH_API_KEY || '',
   fishReferenceId: process.env.FISH_REFERENCE_ID || '',
   fishReferenceAudio: process.env.FISH_REFERENCE_AUDIO || '',

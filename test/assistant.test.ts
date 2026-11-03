@@ -7,6 +7,8 @@ import { HeyRajan } from '../src/voice/assistant.js';
 import type { Speech } from '../src/voice/speech.js';
 import type { ConversationTurn } from '../src/voice/memory.js';
 import type { VoiceDecision } from '../src/voice/intents.js';
+import { VoiceError } from '../src/model.js';
+import { effectPcm } from '../src/voice/effects.js';
 
 function harness(t: TestContext) {
   let now = 10000;
@@ -18,9 +20,11 @@ function harness(t: TestContext) {
   const audioEvents: string[] = [];
   let stopThinking: (() => void) | undefined;
   const workerMessages: { type: string; userId: string }[] = [];
-  const message = { edit: async () => message };
+  const descriptions: string[] = [];
+  const capturePanel = (payload: { embeds: { data: { description?: string } }[] }) => { descriptions.push(payload.embeds[0]?.data.description || ''); return message; };
+  const message = { edit: async (payload: Parameters<typeof capturePanel>[0]) => capturePanel(payload) };
   const session = { closed: false, id: 'session', effectPlaying: false, queue: { size: 1 }, serial: new SerialExecutor(),
-    text: { send: async () => message }, voice: { members: new Map(['1', '2'].map(id => [id, { id, displayName: id === '1' ? 'Sushi' : 'Jason', user: { username: id, bot: false } }])) },
+    text: { send: async (payload: Parameters<typeof capturePanel>[0]) => capturePanel(payload) }, voice: { members: new Map(['1', '2'].map(id => [id, { id, displayName: id === '1' ? 'Sushi' : 'Jason', user: { username: id, bot: false } }])) },
     assertMember() {}, playEffect: async (pcm: Buffer, signal?: AbortSignal, options?: { loop?: boolean }) => {
       if (!options?.loop) { audioEvents.push('reply'); outputs.push(pcm); return; }
       const sound = { signal, stopped: false }; thinkingSounds.push(sound); audioEvents.push('thinking');
@@ -40,6 +44,7 @@ function harness(t: TestContext) {
   };
   const speech = {
     configured: true,
+    errorAudio: undefined as Buffer | undefined,
     understand: async (input: string | Buffer, _people: unknown, _userId: string, history: ConversationTurn[]): Promise<VoiceDecision> => {
       requests.push({ input, history }); return { transcript: String(input), intent: { kind: 'say', reply: history.length ? 'Another joke.' : 'First joke.' } };
     },
@@ -52,7 +57,7 @@ function harness(t: TestContext) {
   // Inject a worker transport without loading the native wake model in unit tests.
   Object.assign(assistant, { worker });
   t.after(() => assistant.close());
-  return { assistant, session, speech, outputs, controls, plays, voices, requests, workerMessages, thinkingSounds, audioEvents, tick: () => { now += 2100; } };
+  return { assistant, session, speech, outputs, controls, plays, voices, requests, workerMessages, thinkingSounds, audioEvents, descriptions, tick: () => { now += 2100; } };
 }
 
 test('reported music/wedding/joke requests work, and a follow-up remembers only its speaker', async t => {
@@ -98,8 +103,38 @@ test('failed speech releases the request slot and re-arms wake detection', async
   h.speech.speak = async () => { throw new Error('simulated failure'); };
   await assert.rejects(h.assistant.execute('tell me a joke', '1'), /simulated failure/);
   assert.equal(h.thinkingSounds[0]?.stopped, true);
+  assert.deepEqual(h.outputs[0], effectPcm('error'));
   assert.ok(h.workerMessages.some(message => message.type === 'cancel' && message.userId === '1'));
-  h.tick(); await h.assistant.execute('air horn', '1'); assert.equal(h.outputs.length, 1);
+  h.tick(); await h.assistant.execute('air horn', '1'); assert.equal(h.outputs.length, 2);
+});
+
+test('understanding timeout plays an offline notice after the pulse and the next request succeeds', async t => {
+  const h = harness(t);
+  h.speech.errorAudio = Buffer.alloc(48000, 10);
+  const understand = h.speech.understand;
+  h.speech.understand = async () => { throw new VoiceError('Please try again.', 'GEMINI_TIMEOUT'); };
+  await assert.rejects(h.assistant.execute(Buffer.alloc(32000), '1'), { code: 'GEMINI_TIMEOUT' });
+  assert.deepEqual(h.audioEvents, ['thinking', 'stop-thinking', 'reply']);
+  assert.deepEqual(h.outputs[0], effectPcm('speech', h.speech.errorAudio));
+  assert.equal(h.voices.length, 0); assert.equal(h.plays.length, 0);
+  h.speech.understand = understand;
+  h.tick(); await h.assistant.execute('tell me a joke', '1');
+  assert.deepEqual(h.requests[0]?.history, []);
+  assert.equal(h.outputs.length, 2); assert.equal(h.voices.length, 1);
+});
+
+test('a canceled failed request never plays an error over a newer request', async t => {
+  const h = harness(t);
+  const understand = h.speech.understand;
+  let fail!: (reason: Error) => void;
+  h.speech.understand = async () => new Promise((_resolve, reject) => { fail = reject; });
+  const first = h.assistant.execute('hello', '1');
+  h.assistant.cancel(); h.tick();
+  h.speech.understand = understand;
+  await h.assistant.execute('tell me a joke', '1');
+  fail(new VoiceError('Please try again.', 'GEMINI_TIMEOUT'));
+  await assert.rejects(first, { code: 'GEMINI_TIMEOUT' });
+  assert.equal(h.outputs.length, 1);
 });
 
 test('opting out while speech generates prevents audio, clears context, and preserves another listener', async t => {
@@ -141,8 +176,10 @@ test('thinking sound covers understanding and speech generation, then stops befo
   understood({ transcript: 'tell me a joke', intent: { kind: 'say', reply: 'A short joke.' } });
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(h.thinkingSounds[0]!.stopped, false); assert.equal(h.outputs.length, 0);
+  assert.ok(h.descriptions.some(text => text.includes('A short joke.') && text.includes('Getting my voice ready')));
   spoken(Buffer.alloc(48000)); await request;
   assert.deepEqual(h.audioEvents, ['thinking', 'stop-thinking', 'reply']);
+  assert.match(h.descriptions.at(-1)!, /A short joke/);
 });
 
 test('a delayed canceled request cannot stop a newer thinking sound', async t => {

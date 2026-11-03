@@ -154,11 +154,13 @@ export class HeyRajan {
     const execution = new AbortController(); this.execution = execution; this.executionUser = userId;
     signal = AbortSignal.any([signal, execution.signal]);
     const started = Date.now();
+    let stage = 'understanding';
+    let reply = '';
     const thinking = new AbortController();
     let thinkingDone: Promise<void> | undefined;
     const stopThinking = async () => { thinking.abort(); await thinkingDone; };
+    const generation = this.generation;
     try {
-      const generation = this.generation;
       this.status = 'Thinking…'; void this.publish().catch(logError.bind(null, 'voice panel'));
       if (!local || ['chat', 'music', 'entrance', 'wedding'].includes(local.kind)) {
         thinkingDone = this.session.playEffect(effectPcm('thinking'), AbortSignal.any([signal, thinking.signal]), { loop: true })
@@ -169,6 +171,7 @@ export class HeyRajan {
         : await this.speech.understand(input, this.people(), userId, this.memory.get(userId), signal);
       if (signal.aborted || generation !== this.generation || this.closed || !this.session.voice?.members.has(userId)) return;
       const { intent } = decision;
+      stage = intent.kind;
       console.log(`${new Date().toISOString()} [hey rajan] action=${intent.kind} understoodMs=${Date.now() - started}`);
       let response = '';
       if (intent.kind === 'stop') { this.cancel(); await this.publish(); return; }
@@ -189,13 +192,18 @@ export class HeyRajan {
         response = ({ pause: 'Music paused.', resume: 'Music resumed.', skip: 'Skipped to the next song.', back: 'Going back.', shuffle: 'Queue shuffled.', stop_music: 'Music stopped.' } as Record<string, string>)[intent.kind]!;
       } else if (intent.kind === 'say' || intent.kind === 'entrance' || intent.kind === 'wedding') {
         response = intent.kind === 'say' ? intent.reply : intent.kind === 'wedding' ? weddingLine(intent.name) : entranceLine(intent.name);
-        this.status = intent.kind === 'say' ? 'Getting my voice ready…' : `Preparing ${intent.name}’s ${intent.kind}…`;
+        reply = response;
+        this.status = `${reply}\n\nGetting my voice ready…`;
         void this.publish().catch(logError.bind(null, 'voice panel'));
+        stage = 'speech';
+        const speechStarted = Date.now();
         const speech = await this.speech.speak(response, signal, intent.kind === 'say' ? 'conversation' : intent.kind);
         if (signal.aborted || generation !== this.generation || this.closed || !this.session.voice?.members.has(userId)) return;
         await stopThinking();
         signal.throwIfAborted();
-        this.status = intent.kind === 'say' ? 'Speaking…' : 'Announcing…'; void this.publish().catch(logError.bind(null, 'voice panel'));
+        console.log(`${new Date().toISOString()} [hey rajan] speechReadyMs=${Date.now() - speechStarted}`);
+        stage = 'playback';
+        this.status = `${reply}\n\n${intent.kind === 'say' ? 'Speaking…' : 'Announcing…'}`; void this.publish().catch(logError.bind(null, 'voice panel'));
         await this.session.playEffect(effectPcm(intent.kind === 'say' ? 'speech' : intent.kind, speech), signal);
       } else if (intent.kind === 'dramatic' || intent.kind === 'airhorn') {
         await stopThinking();
@@ -206,9 +214,19 @@ export class HeyRajan {
       if (signal.aborted || generation !== this.generation || this.closed) return;
       this.memory.add(userId, decision.transcript, response);
       console.log(`${new Date().toISOString()} [hey rajan] completed=${intent.kind} totalMs=${Date.now() - started}`);
-      this.status = `${intent.kind === 'music' || ['pause', 'resume', 'skip', 'back', 'shuffle'].includes(intent.kind) ? `${response}\n\n` : ''}${this.members.size ? 'Ready. Say “Hey Rajan” for your next request.' : 'Ready for /ask or /effect. Voice listening is off.'}`;
+      this.status = `${reply || intent.kind === 'music' || ['pause', 'resume', 'skip', 'back', 'shuffle'].includes(intent.kind) ? `${response}\n\n` : ''}${this.members.size ? 'Ready. Say “Hey Rajan” for your next request.' : 'Ready for /ask or /effect. Voice listening is off.'}`;
       await this.publish();
     } catch (error) {
+      await stopThinking();
+      // Failure feedback must not depend on the same cloud service that just failed.
+      // Canceled/old requests must never interrupt a newer request or a listener who left.
+      if (!signal.aborted && generation === this.generation && !this.closed && this.session.voice?.members.has(userId)) {
+        console.log(`${new Date().toISOString()} [hey rajan] failedStage=${stage} elapsedMs=${Date.now() - started}`);
+        this.status = userMessage(error); void this.publish().catch(logError.bind(null, 'voice panel'));
+        const notice = this.speech.errorAudio;
+        await this.session.playEffect(notice ? effectPcm('speech', notice) : effectPcm('error'), signal)
+          .catch(feedbackError => logError('voice error feedback', feedbackError));
+      }
       if (!signal.aborted && typeof input === 'string') this.report(error);
       throw error;
     } finally {

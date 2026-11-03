@@ -1,6 +1,6 @@
 /** Original synthesized effects. Raw signed 16-bit, 48 kHz stereo for Discord. */
-export function effectPcm(kind: 'chime' | 'thinking' | 'dramatic' | 'airhorn' | 'entrance' | 'wedding' | 'speech', speech?: Buffer): Buffer {
-  const duration = kind === 'thinking' ? 2.4 : kind === 'chime' ? 0.28 : kind === 'airhorn' ? 1.4 : kind === 'dramatic' ? 15
+export function effectPcm(kind: 'chime' | 'error' | 'thinking' | 'dramatic' | 'airhorn' | 'entrance' | 'wedding' | 'speech', speech?: Buffer): Buffer {
+  const duration = kind === 'error' ? 0.55 : kind === 'thinking' ? 2.4 : kind === 'chime' ? 0.28 : kind === 'airhorn' ? 1.4 : kind === 'dramatic' ? 15
     : Math.min(28, (kind === 'speech' ? 0.2 : 2) + (speech?.length || 0) / 48000);
   const count = Math.ceil(duration * 48000); const out = Buffer.alloc(count * 4);
   let noise = 777, previousNoise = 0;
@@ -15,6 +15,8 @@ export function effectPcm(kind: 'chime' | 'thinking' | 'dramatic' | 'airhorn' | 
         const frequency = t < 0.22 ? 523.25 : 659.25;
         sample = (Math.sin(2 * Math.PI * frequency * note) + 0.15 * Math.sin(4 * Math.PI * frequency * note)) * 0.035 * envelope;
       }
+    } else if (kind === 'error') {
+      if (t < 0.2 || t > 0.3) sample = Math.sin(2 * Math.PI * (t < 0.2 ? 440 : 330) * t) * 0.12 * fade;
     } else if (kind === 'chime') sample = Math.sin(2 * Math.PI * (t < 0.12 ? 660 : 990) * t) * 0.12 * fade;
     else if (kind === 'airhorn') {
       const gate = t < 0.3 || (t > 0.42 && t < 0.72) || t > 0.84;

@@ -11,6 +11,7 @@ import { saveEnv } from '../scripts/env.js';
 import { HeyRajan } from './voice/assistant.js';
 import { Speech } from './voice/speech.js';
 import { configuredFishVoice } from './voice/fish.js';
+import { loadErrorAudio } from './voice/feedback.js';
 
 requireDiscordConfig();
 const client = new Client({
@@ -27,7 +28,7 @@ const youtube = new YouTube(config.ytdlp, config.ffmpeg);
 const sessions = new Map<string, MusicSession>();
 const assistants = new Map<string, HeyRajan>();
 const fish = configuredFishVoice(config);
-const speech = new Speech(config.geminiKey, config.transcriptionModel, config.speechModel, config.announcerVoice, undefined, fish);
+const speech = new Speech(config.geminiKey, config.transcriptionModel, config.speechModel, config.announcerVoice, undefined, fish, loadErrorAudio(config.voiceErrorAudio));
 const importing = new Map<string, { controller: AbortController; voiceId: string }>();
 
 function sessionFor(member: GuildMember, channel: GuildTextBasedChannel): MusicSession {

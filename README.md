@@ -138,6 +138,8 @@ In `.env`, set `ENABLE_HEY_BALLER=true`. Create a **free-tier** Gemini API key i
 
 Defaults are `gemini-3.1-flash-lite` for audio understanding/conversation and `gemini-3.8-flash-tts` with `Fenrir` for speech. `VOICE_TRANSCRIPTION_MODEL`, `VOICE_SPEECH_MODEL`, and `VOICE_ANNOUNCER` can override these. A single multimodal call understands a spoken request and either selects an allowed action or writes a reply; spoken replies need a second TTS call. Explicit typed music/effect/control requests skip the understanding call. The last 20 generated speech lines are cached in memory by text and style. Cloud latency and free quotas vary; replies are not guaranteed to be instant.
 
+Rajan is prompted to answer in at most 20 words / 160 characters. Understanding uses Gemini’s streaming generation endpoint; the complete response must finish and pass validation before any action runs. His answer appears in the bot card while speech generates. A failed request stops the thinking pulse and plays a local error tone. Optionally set `VOICE_ERROR_AUDIO` to a private prerecorded retry notice (24 kHz mono PCM16 WAV, up to eight seconds); this is loaded at startup and never calls a cloud service during failure handling. Missing or invalid clips fall back to the tone. Cancellation stays silent and cannot interrupt a newer request. Logs identify the failed stage and elapsed time without recording conversation content.
+
 ### Optional private voice clone
 
 With the speaker’s permission, prepare 10–30 seconds of clean solo speech and its exact transcript in `.runtime/` (ignored by Git). Keep the source recording out of this public repo. Create a Fish Audio API key and configure the local `.env`:

@@ -10,6 +10,10 @@ import { VoiceError, logError } from '../src/model.js';
 import { speechPcm } from '../src/voice/pcm.js';
 
 const people = [{ id: '1', name: 'Jason', aliases: ['jdog'] }, { id: '2', name: 'Sushi', aliases: ['floatingsushi'] }];
+function streamedDecision(decision: object): Response {
+  return new Response(`data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(decision) }] }, finishReason: 'STOP' }] })}\n\n`,
+    { headers: { 'content-type': 'text/event-stream' } });
+}
 test('voice actions accept supported natural phrases and exact member aliases', () => {
   assert.deepEqual(parseVoiceIntent('Hey Rajan, give this conversation a dramatic soundtrack!', people), { kind: 'dramatic' });
   assert.deepEqual(parseVoiceIntent('announce jdog like a WWE entrance', people), { kind: 'entrance', name: 'Jason' });
@@ -50,7 +54,7 @@ test('opt-out cancellation drops captured audio and the eight second limit bound
   const file = wav(Buffer.alloc(640)); assert.equal(file.readUInt32LE(40), 640); assert.equal(file.readUInt32LE(24), 16000);
 });
 test('effects have bounded duration, stereo frames and a limited output level', () => {
-  for (const kind of ['chime', 'thinking', 'dramatic', 'airhorn', 'entrance', 'wedding', 'speech'] as const) {
+  for (const kind of ['chime', 'error', 'thinking', 'dramatic', 'airhorn', 'entrance', 'wedding', 'speech'] as const) {
     const pcm = effectPcm(kind, Buffer.alloc(24000 * 2));
     assert.equal(pcm.length % 4, 0); assert.ok(pcm.length <= 28 * 48000 * 4);
     for (let i = 0; i < pcm.length; i += 4) { assert.ok(Math.abs(pcm.readInt16LE(i)) <= 27853); assert.equal(pcm.readInt16LE(i), pcm.readInt16LE(i + 2)); }
@@ -94,9 +98,10 @@ test('follow-up context is isolated, capped, expires, and is erased on opt-out',
 
 test('assistant understands audio and prepares a reply in one request, with bounded per-user context', async () => {
   let request: Record<string, any> = {};
-  const speech = new Speech('test-key', undefined, undefined, undefined, async (_url, init) => {
+  const speech = new Speech('test-key', undefined, undefined, undefined, async (url, init) => {
     request = JSON.parse(String(init?.body));
-    return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ transcript: 'tell me another one', kind: 'say', reply: 'Another joke.', query: '', name: '' }) }] } }] });
+    assert.match(String(url), /:streamGenerateContent\?alt=sse$/);
+    return streamedDecision({ transcript: 'tell me another one', kind: 'say', reply: 'Another joke.', query: '', name: '' });
   });
   const result = await speech.understand(Buffer.alloc(32000), people, '2', [{ request: 'tell me a joke', response: 'First joke.' }], new AbortController().signal);
   assert.equal(result.intent.kind, 'say');
@@ -170,7 +175,7 @@ test('a transient Gemini outage retries once; repeated failures release the call
   const speech = new Speech('test-key', undefined, undefined, undefined, async () => {
     calls++;
     return calls === 1 ? new Response('private error body', { status: 503 })
-      : Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ transcript: 'hello', kind: 'say', reply: 'Hey there!' }) }] } }] });
+      : streamedDecision({ transcript: 'hello', kind: 'say', reply: 'Hey there!' });
   });
   assert.equal((await speech.understand('hello', [], 'test', [], new AbortController().signal)).intent.kind, 'say');
   assert.equal(calls, 2);
@@ -178,4 +183,52 @@ test('a transient Gemini outage retries once; repeated failures release the call
   const down = new Speech('test-key', undefined, undefined, undefined, async () => { calls++; return new Response('', { status: 503 }); });
   await assert.rejects(down.understand('hello', [], 'test', [], new AbortController().signal), /HTTP 503/);
   assert.equal(calls, 2);
+});
+
+test('an understanding deadline also cancels a stalled response body without retrying', async t => {
+  const deadline = new AbortController();
+  t.mock.method(AbortSignal, 'timeout', (ms: number) => { assert.equal(ms, 25000); return deadline.signal; });
+  let calls = 0;
+  const speech = new Speech('test-key', undefined, undefined, undefined, async (_url, init) => {
+    calls++;
+    return new Response(new ReadableStream({ start(controller) {
+      controller.enqueue(new TextEncoder().encode('{"candidates":['));
+      init?.signal?.addEventListener('abort', () => controller.error(init.signal!.reason), { once: true });
+      setImmediate(() => deadline.abort(new DOMException('Timed out', 'TimeoutError')));
+    } }));
+  });
+  await assert.rejects(speech.understand('hello', [], '1', [], new AbortController().signal), { code: 'GEMINI_TIMEOUT' });
+  assert.equal(calls, 1);
+});
+
+test('streaming understanding handles split UTF-8/events and never accepts an unfinished command', async () => {
+  const decision = JSON.stringify({ transcript: 'hello', kind: 'say', reply: 'Yooo cuh soh. Café time.' });
+  const event = (parts: object[], finishReason?: string) => `data: ${JSON.stringify({ candidates: [{ content: { parts }, finishReason }] })}\r\n\r\n`;
+  const complete = event([{ thought: true, text: 'hidden reasoning' }, { text: decision.slice(0, 25) }])
+    + event([{ text: decision.slice(25) }], 'STOP');
+  const make = (text: string) => new Speech('test-key', undefined, undefined, undefined, async () => {
+    const bytes = Buffer.from(text);
+    return new Response(new ReadableStream({ start(controller) {
+      for (let i = 0; i < bytes.length; i += 7) controller.enqueue(bytes.subarray(i, i + 7));
+      controller.close();
+    } }), { headers: { 'content-type': 'text/event-stream' } });
+  });
+  const result = await make(complete).understand('hello', [], '1', [], new AbortController().signal);
+  assert.deepEqual(result.intent, { kind: 'say', reply: 'Yooo cuh soh. Café time.' });
+  for (const text of [event([{ text: decision }]), event([{ text: decision }], 'MAX_TOKENS'), 'data: {broken\n\n' + event([{ text: decision }], 'STOP')]) {
+    await assert.rejects(make(text).understand('hello', [], '1', [], new AbortController().signal), /finish|unreadable/);
+  }
+});
+
+test('a completed streamed answer releases an open connection without waiting for EOF', async () => {
+  let canceled = false;
+  const speech = new Speech('test-key', undefined, undefined, undefined, async () => {
+    const decision = JSON.stringify({ transcript: 'hello', kind: 'say', reply: 'Hello!' });
+    return new Response(new ReadableStream({ start(controller) {
+      controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: decision }] }, finishReason: 'STOP' }] })}\n\n`));
+      // The provider leaves the HTTP connection open after its terminal event.
+    }, cancel() { canceled = true; } }), { headers: { 'content-type': 'text/event-stream' } });
+  });
+  const result = await speech.understand('hello', [], '1', [], new AbortController().signal);
+  assert.deepEqual(result.intent, { kind: 'say', reply: 'Hello!' }); assert.equal(canceled, true);
 });

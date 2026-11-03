@@ -70,9 +70,9 @@ export function parseDecision(raw: string, people: Person[], userId?: string): V
 }
 
 export function entranceLine(name: string): string {
-  return `Ladies and gentlemen! Entering the call! The undisputed champion of showing up late and talking trash! Make some noise for... ${name}!`;
+  return `Entering the call: the undefeated champion of showing up late. Make some noise for... ${name}!`;
 }
 
 export function weddingLine(name: string): string {
-  return `Ladies and gentlemen, a little love and a lot of applause! Please rise and give the warmest welcome to the one and only... ${name}! Let the celebration begin!`;
+  return `Everybody on your feet! A little love and a loud welcome for... ${name}! Let the celebration begin!`;
 }
