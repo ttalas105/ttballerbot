@@ -239,10 +239,10 @@ export class HeyRajan {
   async publish(): Promise<void> {
     await this.panelSerial.run(async () => {
       const enabled = this.members.size > 0;
-      const embed = new EmbedBuilder().setColor(enabled ? 0x88e8b5 : 0x52685c).setTitle('HEY RAJAN • AI cuzo')
+      const embed = new EmbedBuilder().setColor(enabled ? 0x88e8b5 : 0x52685c).setTitle('HEY RAJAN • AI assistant')
         .setDescription(this.status).addFields({ name: enabled ? 'Listening locally for the wake phrase' : 'Voice listening is off',
           value: enabled ? [...this.members.keys()].map(id => `<@${id}>`).join(' · ') : 'Use /hey on to opt in for your own voice.' },
-        { name: 'Try saying', value: '“Play some J Cole” · “Tell me a joke” · “Announce Tyrone like a wedding” · “Dramatic soundtrack” · “Pause the music”' },
+        { name: 'Try saying', value: '“What’s good bro?” · “Play some J Cole” · “Tell me a joke” · “Announce Tyrone like a wedding” · “Dramatic soundtrack”' },
         { name: 'Your voice, your choice', value: `Only opted-in voices are checked locally. After the chime, up to 8 seconds go to Gemini. Your last 4 requests and replies stay in memory for 10 minutes for follow-ups and are sent with your next request. Live requests are not saved to disk. Opt-out clears your context. Google’s free tier may use requests to improve its products. ${this.speech.voiceDisclosure || 'Replies use an AI voice.'}` })
         .setFooter({ text: 'Hey Rajan → chime → speak • Wake again for each reply • 15-minute opt-in • /ask works without listening' });
       const row = new ActionRowBuilder<ButtonBuilder>().addComponents(

@@ -202,7 +202,7 @@ test('an understanding deadline also cancels a stalled response body without ret
 });
 
 test('streaming understanding handles split UTF-8/events and never accepts an unfinished command', async () => {
-  const decision = JSON.stringify({ transcript: 'hello', kind: 'say', reply: 'Yooo cuh soh. Café time.' });
+  const decision = JSON.stringify({ transcript: 'hello', kind: 'say', reply: 'Oh, you again. Café time.' });
   const event = (parts: object[], finishReason?: string) => `data: ${JSON.stringify({ candidates: [{ content: { parts }, finishReason }] })}\r\n\r\n`;
   const complete = event([{ thought: true, text: 'hidden reasoning' }, { text: decision.slice(0, 25) }])
     + event([{ text: decision.slice(25) }], 'STOP');
@@ -214,7 +214,7 @@ test('streaming understanding handles split UTF-8/events and never accepts an un
     } }), { headers: { 'content-type': 'text/event-stream' } });
   });
   const result = await make(complete).understand('hello', [], '1', [], new AbortController().signal);
-  assert.deepEqual(result.intent, { kind: 'say', reply: 'Yooo cuh soh. Café time.' });
+  assert.deepEqual(result.intent, { kind: 'say', reply: 'Oh, you again. Café time.' });
   for (const text of [event([{ text: decision }]), event([{ text: decision }], 'MAX_TOKENS'), 'data: {broken\n\n' + event([{ text: decision }], 'STOP')]) {
     await assert.rejects(make(text).understand('hello', [], '1', [], new AbortController().signal), /finish|unreadable/);
   }

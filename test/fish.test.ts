@@ -23,11 +23,11 @@ test('instant cloning sends the exact consented reference as MessagePack on the 
     const body = decode(init!.body as Uint8Array) as any;
     assert.equal(body.reference_id, undefined); assert.equal(body.references.length, 1);
     assert.deepEqual(Buffer.from(body.references[0].audio), reference.audio);
-    assert.equal(body.references[0].text, reference.text); assert.equal(body.text, 'Hello cuzo.');
+    assert.equal(body.references[0].text, reference.text); assert.equal(body.text, 'Hello there.');
     return new Response(new Uint8Array(wav(Buffer.alloc(48000), 24000)), { headers: { 'content-type': 'audio/wav' } });
   });
   assert.equal(fish.usesReferenceAudio, true);
-  assert.equal((await fish.speak('Hello cuzo.', signal(), 'conversation')).length, 48000);
+  assert.equal((await fish.speak('Hello there.', signal(), 'conversation')).length, 48000);
   assert.throws(() => new FishVoice('key', { audio: Buffer.alloc(0), text: 'hello' }), /together/);
   assert.throws(() => new FishVoice('key', { audio: Buffer.alloc(1), text: '' }), /together/);
   assert.throws(() => new FishVoice('key', { audio: Buffer.alloc(3 * 1024 * 1024 + 1), text: 'hello' }), /together/);
@@ -42,13 +42,13 @@ test('Fish uses the selected private voice, explicit free model, bounded PCM and
     return new Response(new Uint8Array(wav(Buffer.alloc(48000), 24000)), { headers: { 'content-type': 'audio/wav' } });
   });
   const speech = new Speech('gemini-key', undefined, undefined, undefined, async () => { throw new Error('No Gemini TTS fallback'); }, fish);
-  assert.equal((await speech.speak('Yoooooo cuzo.', signal(), 'conversation')).length, 48000);
-  await speech.speak('Yoooooo cuzo.', signal(), 'conversation');
-  await speech.speak('Yoooooo cuzo.', signal(), 'entrance');
+  assert.equal((await speech.speak('Good to see you.', signal(), 'conversation')).length, 48000);
+  await speech.speak('Good to see you.', signal(), 'conversation');
+  await speech.speak('Good to see you.', signal(), 'entrance');
   assert.equal(requests.length, 2);
   assert.equal(requests[0].reference_id, voiceId); assert.equal(requests[0].sample_rate, 24000);
-  assert.equal(requests[0].format, 'wav'); assert.equal(requests[0].text, 'Yoooooo cuh soh.');
-  assert.equal(requests[1].text, '[excited] Yoooooo cuh soh.');
+  assert.equal(requests[0].format, 'wav'); assert.equal(requests[0].text, 'Good to see you.');
+  assert.equal(requests[1].text, '[excited] Good to see you.');
   assert.match(speech.voiceDisclosure, /Fish/);
 });
 
