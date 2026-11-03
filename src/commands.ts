@@ -14,6 +14,12 @@ export const commands = [
   command('remove', 'Remove a song from the upcoming queue')
     .addIntegerOption(option => option.setName('position').setDescription('Position shown in /queue').setMinValue(1).setRequired(true)),
   command('stop', 'Stop playback, clear the queue, and leave voice'),
+  command('hey', 'Opt your own voice into Hey Baller, or stop listening/effects')
+    .addStringOption(option => option.setName('mode').setDescription('Only on opts your own voice in for 15 minutes').setRequired(true)
+      .addChoices({ name: 'On — listen to my voice', value: 'on' }, { name: 'Off — stop listening to me', value: 'off' },
+        { name: 'Status', value: 'status' }, { name: 'Stop effects', value: 'stop' }, { name: 'Turn listening off for everyone', value: 'alloff' })),
+  command('effect', 'Play a sound effect or AI entrance without enabling voice listening')
+    .addStringOption(option => option.setName('prompt').setDescription('dramatic soundtrack, air horn, announce <Discord name> like a wrestling entrance').setRequired(true).setMaxLength(300)),
   command('help', 'How to use ttballerbot'),
 ];
 
@@ -28,4 +34,9 @@ export const help = [
   '`/shuffle` · `/remove position:<number>` · `/clear` · `/stop`',
   'Use the buttons on the player card. Only people in my voice channel can control playback.',
   'Queues are temporary and reset when the bot restarts. I leave automatically when idle or alone.',
+  '',
+  'Experimental Hey Baller (when enabled by the host): `/hey mode:on` opts in your own voice for 15 minutes.',
+  'Say “Hey Baller”, wait for the chime, then “dramatic soundtrack”, “air horn”, or “announce <name> like a wrestling entrance”.',
+  '`/hey mode:off` opts you out. `/hey mode:alloff` stops all listening. `/hey mode:stop` stops effects.',
+  '`/effect prompt:dramatic soundtrack` works without voice listening. AI announcer speech is generated.',
 ].join('\n');

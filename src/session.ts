@@ -1,8 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
+import { Readable } from 'node:stream';
 import {
   AudioPlayerStatus, NoSubscriberBehavior, VoiceConnectionStatus, createAudioPlayer,
-  entersState, joinVoiceChannel, type AudioResource, type VoiceConnection,
+  entersState, joinVoiceChannel, createAudioResource, StreamType, type AudioResource, type VoiceConnection,
 } from '@discordjs/voice';
 import { AttachmentBuilder, ChannelType, PermissionFlagsBits, type GuildMember, type GuildTextBasedChannel, type Message, type VoiceChannel } from 'discord.js';
 import { MusicQueue, SerialExecutor } from './queue.js';
@@ -44,6 +45,40 @@ export class MusicSession {
   private panelTimer: NodeJS.Timeout;
   private readonly panelSerial = new SerialExecutor();
   private artwork?: { trackId: string; name: string; buffer: Buffer };
+  private finishEffect?: () => void;
+  get effectPlaying(): boolean { return !!this.finishEffect; }
+
+  /** Temporarily pause the queue, play an effect, then restore the same music resource. */
+  async playEffect(pcm: Buffer, signal?: AbortSignal): Promise<void> {
+    if (this.closed || !this.connection || signal?.aborted) return;
+    this.stopEffect();
+    const generation = this.generation;
+    const wasPlaying = this.status === 'playing';
+    if (wasPlaying) { this.player.pause(); this.status = 'paused'; }
+    const effect = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Stop } });
+    const input = Readable.from([pcm]);
+    const resource = createAudioResource(input, { inputType: StreamType.Raw });
+    await new Promise<void>(resolve => {
+      let finished = false;
+      const finish = () => {
+        if (finished) return; finished = true;
+        clearTimeout(timeout); signal?.removeEventListener('abort', finish);
+        this.finishEffect = undefined; effect.stop(true); input.destroy(); resource.playStream.destroy();
+        if (!this.closed && this.connection?.state.status !== VoiceConnectionStatus.Destroyed) {
+          this.connection?.subscribe(this.player);
+          if (wasPlaying && generation === this.generation && !this.pauseRequested) { this.player.unpause(); this.status = 'playing'; }
+        }
+        this.refresh(); resolve();
+      };
+      const timeout = setTimeout(finish, 32000); timeout.unref();
+      this.finishEffect = finish;
+      effect.once(AudioPlayerStatus.Idle, finish);
+      effect.once('error', error => { logError('sound effect', error); finish(); });
+      signal?.addEventListener('abort', finish, { once: true });
+      this.connection!.subscribe(effect); effect.play(resource); this.refresh();
+    });
+  }
+  stopEffect(): void { this.finishEffect?.(); }
 
   constructor(
     readonly text: GuildTextBasedChannel, private readonly youtube: YouTube,
@@ -129,6 +164,7 @@ export class MusicSession {
 
   private releaseAudio(): void {
     this.generation++;
+    this.stopEffect();
     this.controller?.abort();
     this.controller = undefined;
     const oldAudio = this.audio;
@@ -195,6 +231,7 @@ export class MusicSession {
 
   control(action: string): void {
     if (this.closed) throw new UserError('That session has ended.');
+    if (this.effectPlaying && ['toggle', 'pause', 'resume'].includes(action)) this.stopEffect();
     switch (action) {
       case 'next': this.queue.next(); this.startCurrent(); break;
       case 'back': this.queue.previous(); this.startCurrent(); break;

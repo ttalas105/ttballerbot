@@ -100,8 +100,54 @@ Audio is buffered ahead in bounded memory to tolerate network stalls. Interrupte
 
 ## Data and secrets
 
-`.env`, `bin/`, and `.runtime/` are ignored by Git. Never share `.env` or bot tokens. The bot reads command requests and voice membership, keeps queue metadata in memory, sends song-search terms to YouTube, and displays queued titles in Discord. No voice audio is recorded. Audio is piped through yt-dlp and FFmpeg without saving songs to disk. Console errors omit provider response bodies and credentials. Spotify metadata is linked back to Spotify.
+`.env`, `bin/`, `models/`, and `.runtime/` are ignored by Git. Never share `.env` or bot tokens. The bot reads command requests and voice membership, keeps queue metadata in memory, sends song-search terms to YouTube, and displays queued titles in Discord. Incoming voice is not processed unless a listener explicitly opts into Hey Baller below. Audio is piped through yt-dlp and FFmpeg without saving songs to disk. Console errors omit provider response bodies and credentials. Spotify metadata is linked back to Spotify.
 
 Player artwork uses the provider's original cover image in a custom layout. Cover requests are limited to known Spotify/YouTube image hosts, bounded to 5 MB, and timeout after four seconds. The bundled Barlow Condensed fonts are licensed under the SIL Open Font License in `assets/fonts/OFL.txt`.
 
 To disconnect Spotify, revoke **ttballerbot** in your Spotify account's app-access settings, clear the Spotify credentials/refresh token in `.env`, and restart the bot. Stop the bot to clear queued data; remove existing queue messages from Discord if you also want those displays deleted.
+
+## Hey Baller — experimental `heyTT` branch
+
+Local wake phrase detection with opt-in per Discord user. Say **“Hey Baller”**, wait for the ready chime, then say one of:
+
+- “Give this conversation a dramatic soundtrack” — 15 seconds of original synthesized suspense music.
+- “Air horn” — a short synthesized horn.
+- “Announce Jason like a wrestling entrance” — an AI arena announcer over a synthesized entrance bed. Use the person's Discord display name or username; they must be in the channel. Ambiguous names are rejected.
+- “Stop” — stop effects. While an effect is playing, use the chat Stop effects button or `/hey mode:stop`; wake triggers are suppressed during playback to avoid echoes.
+
+The first version pauses music while playing effects and restores the same queue position afterward. It uses prepared announcer lines with the selected name; it does not yet write unlimited custom speeches or generate new music on demand. The detector and command routing run separately from Discord's audio scheduler. Wake phrase accuracy on real microphones needs a live trial; synthetic fixtures are not a substitute for testing accents, background noise, and speaker leakage.
+
+### Setup and trial
+
+```powershell
+git switch heyTT
+npm ci
+npm run voice:install
+```
+
+In `.env`, set `ENABLE_HEY_BALLER=true`. Create a **free-tier** Gemini API key in [Google AI Studio](https://aistudio.google.com/api-keys), and set `GEMINI_API_KEY` locally. No OpenAI key is needed. Keep billing disabled for a free-only trial. Free-tier quotas vary by project/model; quota errors stop the request instead of retrying indefinitely or switching providers. Google says free-tier requests may be used to improve its products; see [pricing and data use](https://aistudio.google.com/docs/pricing).
+
+Defaults are `gemini-3.1-flash-lite` for command transcription and `gemini-3.8-flash-tts` with `Fenrir` for the announcer. `VOICE_TRANSCRIPTION_MODEL`, `VOICE_SPEECH_MODEL`, and `VOICE_ANNOUNCER` can override these. The last 20 generated entrance lines are cached in memory to reduce repeated API usage. Google model availability and free quotas must be checked for your own project.
+
+```powershell
+npm run check
+npm run build
+npm run register
+npm start
+```
+
+Join voice and run `/hey mode:on`. **Only the user who invokes it opts in.** Up to four listeners can opt in; the session expires after 15 minutes from the most recent opt-in. The public status card lists listeners and explains data handling. `/hey mode:off` removes yourself, `/hey mode:alloff` stops all reception, and leaving voice removes your subscription. Anybody in the same voice channel can use the stop controls. Listening returns to off after a restart.
+
+`/effect prompt:dramatic soundtrack` and `/effect prompt:air horn` work without a speech key and without enabling listening. Without a key, `/hey mode:on` can still test the local wake detector and chime, but it does not open a command recording window.
+
+### Voice data and limits
+
+Normal opted-in speech goes only to the local Sherpa-ONNX keyword spotter. After the ready chime, a bounded buffer holds at most eight seconds of that user's command. A short silence ends the command, and the buffer is sent to Gemini for transcription. The narrow parser accepts only the actions above; it never executes arbitrary model instructions, code, URLs, moderation, or server administration actions. Opt-out, channel leave, expiry, and stop cancel pending operations. The bot stores no incoming recordings or transcripts on disk and does not print them in logs. Gemini requests use `store:false`; Google's service terms/data policies still apply independently.
+
+Discord voice reception is supported by `@discordjs/voice`, but is not documented by Discord and can break with platform changes. The wake model comes from the [official Sherpa-ONNX release](https://github.com/k2-fsa/sherpa-onnx/releases/tag/kws-models), downloaded separately with a pinned SHA-256. It is not committed to this repo. Model provenance/license: [upstream model](https://www.modelscope.cn/models/pkufool/sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01), Apache 2.0. The authored effects contain no sampled commercial recordings.
+
+Additional checks:
+
+- `npx tsx scripts/smoke-wake.ts <mono-16kHz.wav> ...`: test keyword spotting locally; never joins Discord or calls an API.
+- `node dist/scripts/smoke-voice-worker.js <mono-16kHz-hey-baller.wav>`: verify real Opus decoding, opt-in isolation, wake detection, command capture, and opt-out.
+- `npx tsx scripts/smoke-gemini.ts <mono-16kHz-command.wav>`: make one Gemini transcription request. No path generates a Jason announcer preview in ignored `.runtime/` instead. These explicit development checks use API quota.

@@ -8,6 +8,8 @@ import { parseInput } from './input.js';
 import { UserError, logError, userMessage, type ImportResult } from './model.js';
 import { addSongModal, clean, queuePage } from './panel.js';
 import { saveEnv } from '../scripts/env.js';
+import { HeyBaller } from './voice/assistant.js';
+import { Speech } from './voice/speech.js';
 
 requireDiscordConfig();
 const client = new Client({
@@ -22,7 +24,52 @@ const spotify = new Spotify({ clientId: config.spotifyClientId, clientSecret: co
 });
 const youtube = new YouTube(config.ytdlp, config.ffmpeg);
 const sessions = new Map<string, MusicSession>();
+const assistants = new Map<string, HeyBaller>();
+const speech = new Speech(config.geminiKey, config.transcriptionModel, config.speechModel, config.announcerVoice);
 const importing = new Map<string, { controller: AbortController; voiceId: string }>();
+
+function sessionFor(member: GuildMember, channel: GuildTextBasedChannel): MusicSession {
+  let session = sessions.get(member.guild.id);
+  if (!session) {
+    session = new MusicSession(channel, youtube, config.maxQueue, config.idleMs, () => {
+      if (sessions.get(member.guild.id) === session) {
+        assistants.get(member.guild.id)?.close(); assistants.delete(member.guild.id);
+        sessions.delete(member.guild.id);
+      }
+    });
+    sessions.set(member.guild.id, session);
+  }
+  return session;
+}
+
+async function voiceAction(member: GuildMember, channel: GuildTextBasedChannel, mode: string, prompt?: string): Promise<string> {
+  if (!config.heyEnabled) throw new UserError('Hey Baller is disabled. The host can enable it with ENABLE_HEY_BALLER=true.');
+  let assistant = assistants.get(member.guild.id);
+  if (mode === 'status') {
+    if (!assistant || assistant.ended) return 'Hey Baller is off. /hey mode:on opts in only your own voice.';
+    await assistant.publish(); return `Voice effects: <#${assistant.session.text.id}>. ${assistant.members.size} opted-in listener(s).`;
+  }
+  const voice = requireVoice(member);
+  if (assistant && !assistant.ended && assistant.session.voice?.id !== voice.id) throw new UserError('Join the bot’s voice channel first.');
+  if (['off', 'alloff', 'stop'].includes(mode)) {
+    if (!assistant || assistant.ended) return 'Hey Baller is already off.';
+    if (mode === 'off') assistant.remove(member.id);
+    else if (mode === 'alloff') assistant.close();
+    else assistant.cancel();
+    return mode === 'stop' ? 'Effects stopped.' : 'Listening updated.';
+  }
+  const session = sessionFor(member, channel);
+  await session.serial.run(async () => {
+    session.assertMember(member); await session.connect(member);
+    if (!assistant || assistant.ended) { assistant = new HeyBaller(session, speech); assistants.set(member.guild.id, assistant); }
+    if (mode === 'on') await assistant.enable(member);
+  });
+  if (mode === 'effect') {
+    try { await assistant!.execute(prompt || '', member.id); }
+    finally { if (!assistant!.members.size && !session.queue.size) session.close('Sound effect finished.'); }
+  }
+  return mode === 'on' ? 'Enabled for your voice for 15 minutes. Say “Hey Baller”, wait for the chime, then give a command. /hey mode:off opts out.' : 'Effect complete.';
+}
 
 async function play(member: GuildMember, channel: GuildTextBasedChannel, query: string): Promise<string> {
   const voice = requireVoice(member);
@@ -46,13 +93,7 @@ async function play(member: GuildMember, channel: GuildTextBasedChannel, query: 
     // Stop cancels an in-progress import for an existing session.
     if (existing && existing.closed) throw new UserError('The session stopped while importing; nothing was added.');
     requireVoice(member);
-    let session = sessions.get(member.guild.id);
-    if (!session) {
-      session = new MusicSession(channel, youtube, config.maxQueue, config.idleMs, () => {
-        if (sessions.get(member.guild.id) === session) sessions.delete(member.guild.id);
-      });
-      sessions.set(member.guild.id, session);
-    }
+    const session = sessionFor(member, channel);
     const target = session;
     try {
       await target.serial.run(async () => {
@@ -114,6 +155,14 @@ client.on(Events.InteractionCreate, interaction => {
         return;
       }
       if (interaction.isButton()) {
+        if (interaction.customId.startsWith('tth:')) {
+          const [, id, mode] = interaction.customId.split(':');
+          const assistant = assistants.get(interaction.guildId);
+          if (!assistant || assistant.ended || assistant.session.id !== id) throw new UserError('That voice effects session ended. Use /hey mode:on.');
+          assistant.session.assertMember(interaction.member);
+          await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+          await interaction.editReply(await voiceAction(interaction.member, assistant.session.text, mode || 'status')); return;
+        }
         if (interaction.customId.startsWith('ttq:')) {
           const [, id, page] = interaction.customId.split(':');
           const session = getSession(interaction.guildId);
@@ -137,6 +186,12 @@ client.on(Events.InteractionCreate, interaction => {
       }
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const name = interaction.commandName;
+      if (name === 'hey' || name === 'effect') {
+        const channel = interaction.channel;
+        if (!channel || channel.isDMBased() || !channel.isTextBased()) throw new UserError('Use a server text channel.');
+        await interaction.editReply(await voiceAction(interaction.member, channel,
+          name === 'hey' ? interaction.options.getString('mode', true) : 'effect', interaction.options.getString('prompt') || undefined)); return;
+      }
       if (name === 'help') { await interaction.editReply(help.replace('!play', `${config.prefix}play`)); return; }
       if (name === 'queue') {
         const session = getSession(interaction.guildId);
@@ -200,6 +255,7 @@ client.on(Events.VoiceStateUpdate, (_oldState, state) => {
     session.close('The bot was moved or disconnected. Use /play in the new channel.'); return;
   }
   session.checkListeners();
+  assistants.get(state.guild.id)?.prune();
 });
 client.once(Events.ClientReady, ready => {
   console.log(`ttballerbot online as ${ready.user.tag} in ${ready.guilds.cache.size} server(s).`);

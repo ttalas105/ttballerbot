@@ -17,12 +17,15 @@
     "doctor": "tsx scripts/doctor.ts",
     "register": "tsx scripts/register.ts",
     "spotify:login": "tsx scripts/spotify-login.ts",
-    "tools:install": "tsx scripts/install-tools.ts"
+    "tools:install": "tsx scripts/install-tools.ts",
+    "voice:install": "tsx scripts/install-voice.ts"
   },
   "dependencies": {
     "@discordjs/voice": "0.19.2",
     "@napi-rs/canvas": "1.1.0",
-    "discord.js": "14.28.0"
+    "discord.js": "14.28.0",
+    "opusscript": "0.0.8",
+    "sherpa-onnx-node": "2.0.1"
   },
   "devDependencies": {
     "@types/node": "22.20.5",

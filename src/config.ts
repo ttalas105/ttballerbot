@@ -27,6 +27,11 @@ export const config = {
   idleMs: positiveInt('IDLE_TIMEOUT_SECONDS', 180, 3600) * 1000,
   ytdlp: process.env.YTDLP_PATH || (existsSync(localYtdlp) ? localYtdlp : 'yt-dlp'),
   ffmpeg: process.env.FFMPEG_PATH || 'ffmpeg',
+  heyEnabled: process.env.ENABLE_HEY_BALLER === 'true',
+  geminiKey: process.env.GEMINI_API_KEY || '',
+  transcriptionModel: process.env.VOICE_TRANSCRIPTION_MODEL || 'gemini-3.1-flash-lite',
+  speechModel: process.env.VOICE_SPEECH_MODEL || 'gemini-3.8-flash-tts',
+  announcerVoice: process.env.VOICE_ANNOUNCER || 'Fenrir',
 };
 
 export function requireDiscordConfig(): void {

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PassThrough } from 'node:stream';
 import { setTimeout as delay } from 'node:timers/promises';
-import { AudioPlayerStatus, NoSubscriberBehavior, createAudioResource, entersState, StreamType } from '@discordjs/voice';
+import { AudioPlayerStatus, NoSubscriberBehavior, createAudioResource, entersState, StreamType, VoiceConnectionStatus, type AudioPlayer, type VoiceConnection } from '@discordjs/voice';
 import { ChannelType, type GuildMember, type GuildTextBasedChannel, type VoiceChannel } from 'discord.js';
 import { createMusicPlayer, MusicSession, requireVoice } from '../src/session.js';
 import { PlaybackError, type Track } from '../src/model.js';
@@ -20,6 +20,38 @@ function harness() {
   const session = new MusicSession(channel, youtube, 10, 180000, () => closures++);
   return { session, preparations, closures: () => closures };
 }
+
+test('effects restore the same music resource and stop cannot resurrect playback', async () => {
+  const h = harness();
+  const subscriptions: AudioPlayer[] = [];
+  h.session.connection = { state: { status: VoiceConnectionStatus.Ready },
+    subscribe: (player: AudioPlayer) => { subscriptions.push(player); }, destroy: () => {} } as unknown as VoiceConnection;
+  try {
+    h.session.add([track('a'), track('b')]);
+    await attachAudio(h, 0, 30);
+    h.session.status = 'playing';
+    const effect = h.session.playEffect(Buffer.alloc(48000 * 4));
+    assert.equal(h.session.effectPlaying, true); assert.equal(h.session.status, 'paused');
+    h.session.stopEffect(); await effect;
+    assert.equal(h.session.status, 'playing'); assert.equal(h.session.queue.current?.id, 'a');
+    assert.equal(h.preparations.length, 1); assert.equal(subscriptions.at(-1), h.session.player);
+    const nextEffect = h.session.playEffect(Buffer.alloc(48000 * 4));
+    h.session.close('stop'); await nextEffect;
+    assert.equal(h.session.effectPlaying, false); assert.equal(h.session.status, 'stopped');
+    assert.equal(h.session.queue.size, 0);
+  } finally { h.session.close('cleanup'); }
+});
+
+test('an effect does not unpause music that was already paused', async () => {
+  const h = harness();
+  h.session.connection = { state: { status: VoiceConnectionStatus.Ready }, subscribe: () => {}, destroy: () => {} } as unknown as VoiceConnection;
+  try {
+    h.session.add([track('a')]); await attachAudio(h, 0, 10);
+    h.session.status = 'paused';
+    const effect = h.session.playEffect(Buffer.alloc(48000 * 4)); h.session.stopEffect(); await effect;
+    assert.equal(h.session.status, 'paused'); assert.equal(h.preparations.length, 1);
+  } finally { h.session.close('cleanup'); }
+});
 
 test('skip during lookup cancels stale playback; stop cannot resurrect a song', async () => {
   const h = harness();
