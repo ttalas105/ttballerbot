@@ -108,7 +108,7 @@ To disconnect Spotify, revoke **ttballerbot** in your Spotify account's app-acce
 
 ## Hey Rajan — experimental `heyTT` branch
 
-An opt-in voice assistant for conversation, music, and sound effects. Rajan AI has a sarcastic, playful personality, dry comebacks, and occasional “yoooooo cuzo” / “diddy blud” catchphrases. It is an AI character, not the actual person. Say **“Hey Rajan”**, wait for the ready chime, then speak:
+An opt-in voice assistant for conversation, music, and sound effects. Rajan AI has a sarcastic, playful personality, dry comebacks, and occasional “yooo cuh soh” / “diddy blud” catchphrases. It is an AI character, not the actual person. Say **“Hey Rajan”**, wait for the ready chime, then speak:
 
 - “Give this conversation a dramatic soundtrack” — 15 seconds of original synthesized suspense music.
 - “Air horn” — a short synthesized horn.

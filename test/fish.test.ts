@@ -47,8 +47,8 @@ test('Fish uses the selected private voice, explicit free model, bounded PCM and
   await speech.speak('Yoooooo cuzo.', signal(), 'entrance');
   assert.equal(requests.length, 2);
   assert.equal(requests[0].reference_id, voiceId); assert.equal(requests[0].sample_rate, 24000);
-  assert.equal(requests[0].format, 'wav'); assert.equal(requests[0].text, 'Yoooooo cuzo.');
-  assert.equal(requests[1].text, '[excited] Yoooooo cuzo.');
+  assert.equal(requests[0].format, 'wav'); assert.equal(requests[0].text, 'Yoooooo cuh soh.');
+  assert.equal(requests[1].text, '[excited] Yoooooo cuh soh.');
   assert.match(speech.voiceDisclosure, /Fish/);
 });
 
