@@ -53,6 +53,30 @@ test('an effect does not unpause music that was already paused', async () => {
   } finally { h.session.close('cleanup'); }
 });
 
+test('loop cancellation restores music and an old loop cannot stop its replacement', async () => {
+  const h = harness();
+  h.session.connection = { state: { status: VoiceConnectionStatus.Ready }, subscribe: () => {}, destroy: () => {} } as unknown as VoiceConnection;
+  try {
+    h.session.add([track('a'), track('b')]); await attachAudio(h, 0, 10);
+    h.session.status = 'playing';
+    const canceled = new AbortController();
+    const loop = h.session.playEffect(Buffer.alloc(48000 * 4), canceled.signal, { loop: true });
+    assert.equal(h.session.status, 'paused'); assert.equal(h.session.effectPlaying, true);
+    canceled.abort(); await loop;
+    assert.equal(h.session.status, 'playing'); assert.equal(h.session.effectPlaying, false);
+    assert.equal(h.session.queue.current?.id, 'a'); assert.equal(h.preparations.length, 1);
+
+    const old = new AbortController();
+    const oldLoop = h.session.playEffect(Buffer.alloc(48000 * 4), old.signal, { loop: true });
+    const reply = h.session.playEffect(Buffer.alloc(48000 * 4));
+    old.abort(); await oldLoop;
+    assert.equal(h.session.effectPlaying, true);
+    h.session.stopEffect(); await reply;
+    assert.equal(h.session.status, 'playing'); assert.equal(h.session.queue.current?.id, 'a');
+    await assert.rejects(h.session.playEffect(Buffer.alloc(0), undefined, { loop: true }), /complete stereo/);
+  } finally { h.session.close('cleanup'); }
+});
+
 test('skip during lookup cancels stale playback; stop cannot resurrect a song', async () => {
   const h = harness();
   try {

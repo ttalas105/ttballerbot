@@ -1,13 +1,21 @@
 /** Original synthesized effects. Raw signed 16-bit, 48 kHz stereo for Discord. */
-export function effectPcm(kind: 'chime' | 'dramatic' | 'airhorn' | 'entrance' | 'wedding' | 'speech', speech?: Buffer): Buffer {
-  const duration = kind === 'chime' ? 0.28 : kind === 'airhorn' ? 1.4 : kind === 'dramatic' ? 15
+export function effectPcm(kind: 'chime' | 'thinking' | 'dramatic' | 'airhorn' | 'entrance' | 'wedding' | 'speech', speech?: Buffer): Buffer {
+  const duration = kind === 'thinking' ? 2.4 : kind === 'chime' ? 0.28 : kind === 'airhorn' ? 1.4 : kind === 'dramatic' ? 15
     : Math.min(28, (kind === 'speech' ? 0.2 : 2) + (speech?.length || 0) / 48000);
   const count = Math.ceil(duration * 48000); const out = Buffer.alloc(count * 4);
   let noise = 777, previousNoise = 0;
   for (let i = 0; i < count; i++) {
     const t = i / 48000; let sample = 0;
     const end = Math.min(1, (duration - t) / 0.2), fade = Math.min(1, t / 0.02) * end;
-    if (kind === 'chime') sample = Math.sin(2 * Math.PI * (t < 0.12 ? 660 : 990) * t) * 0.12 * fade;
+    if (kind === 'thinking') {
+      // A quiet two-note pulse, with silence between pulses and at the loop seam.
+      const note = t < 0.22 ? t : t >= 0.3 && t < 0.52 ? t - 0.3 : -1;
+      if (note >= 0) {
+        const envelope = Math.sin(Math.PI * note / 0.22) ** 2;
+        const frequency = t < 0.22 ? 523.25 : 659.25;
+        sample = (Math.sin(2 * Math.PI * frequency * note) + 0.15 * Math.sin(4 * Math.PI * frequency * note)) * 0.035 * envelope;
+      }
+    } else if (kind === 'chime') sample = Math.sin(2 * Math.PI * (t < 0.12 ? 660 : 990) * t) * 0.12 * fade;
     else if (kind === 'airhorn') {
       const gate = t < 0.3 || (t > 0.42 && t < 0.72) || t > 0.84;
       if (gate) sample = (Math.sin(2 * Math.PI * 233 * t) + 0.5 * Math.sin(2 * Math.PI * 311 * t)

@@ -49,14 +49,16 @@ export class MusicSession {
   get effectPlaying(): boolean { return !!this.finishEffect; }
 
   /** Temporarily pause the queue, play an effect, then restore the same music resource. */
-  async playEffect(pcm: Buffer, signal?: AbortSignal): Promise<void> {
+  async playEffect(pcm: Buffer, signal?: AbortSignal, options: { loop?: boolean } = {}): Promise<void> {
     if (this.closed || !this.connection || signal?.aborted) return;
+    if (!pcm.length || pcm.length % 4) throw new UserError('Sound effects need complete stereo audio frames.');
     this.stopEffect();
     const generation = this.generation;
     const wasPlaying = this.status === 'playing';
     if (wasPlaying) { this.player.pause(); this.status = 'paused'; }
     const effect = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Stop } });
-    const input = Readable.from([pcm]);
+    const chunks = options.loop ? (function* () { while (true) yield pcm; })() : [pcm];
+    const input = Readable.from(chunks, { objectMode: false, highWaterMark: 3840 });
     const resource = createAudioResource(input, { inputType: StreamType.Raw });
     await new Promise<void>(resolve => {
       let finished = false;
@@ -70,7 +72,7 @@ export class MusicSession {
         }
         this.refresh(); resolve();
       };
-      const timeout = setTimeout(finish, 32000); timeout.unref();
+      const timeout = setTimeout(finish, options.loop ? 60000 : 32000); timeout.unref();
       this.finishEffect = finish;
       effect.once(AudioPlayerStatus.Idle, finish);
       effect.once('error', error => { logError('sound effect', error); finish(); });

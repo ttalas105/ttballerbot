@@ -154,9 +154,16 @@ export class HeyBaller {
     const execution = new AbortController(); this.execution = execution; this.executionUser = userId;
     signal = AbortSignal.any([signal, execution.signal]);
     const started = Date.now();
+    const thinking = new AbortController();
+    let thinkingDone: Promise<void> | undefined;
+    const stopThinking = async () => { thinking.abort(); await thinkingDone; };
     try {
       const generation = this.generation;
       this.status = 'Thinking…'; void this.publish().catch(logError.bind(null, 'voice panel'));
+      if (!local || ['chat', 'music', 'entrance', 'wedding'].includes(local.kind)) {
+        thinkingDone = this.session.playEffect(effectPcm('thinking'), AbortSignal.any([signal, thinking.signal]), { loop: true })
+          .catch(error => logError('thinking sound', error));
+      }
       // One multimodal request understands the audio AND prepares a conversational reply.
       const decision: VoiceDecision = local && local.kind !== 'chat' ? { transcript: String(input).slice(0, 500), intent: local }
         : await this.speech.understand(input, this.people(), userId, this.memory.get(userId), signal);
@@ -169,7 +176,9 @@ export class HeyBaller {
         if (!this.actions) throw new VoiceError('Music requests aren’t connected on this host. Use /play.', 'VOICE_MUSIC_UNAVAILABLE');
         this.status = 'Finding your music…'; void this.publish().catch(logError.bind(null, 'voice panel'));
         response = await this.actions.play(intent.query, userId, signal);
+        await stopThinking();
       } else if (['pause', 'resume', 'skip', 'back', 'shuffle', 'stop_music'].includes(intent.kind)) {
+        await stopThinking();
         await this.session.serial.run(() => {
           signal.throwIfAborted();
           const member = this.session.voice?.members.get(userId);
@@ -184,9 +193,13 @@ export class HeyBaller {
         void this.publish().catch(logError.bind(null, 'voice panel'));
         const speech = await this.speech.speak(response, signal, intent.kind === 'say' ? 'conversation' : intent.kind);
         if (signal.aborted || generation !== this.generation || this.closed || !this.session.voice?.members.has(userId)) return;
+        await stopThinking();
+        signal.throwIfAborted();
         this.status = intent.kind === 'say' ? 'Speaking…' : 'Announcing…'; void this.publish().catch(logError.bind(null, 'voice panel'));
         await this.session.playEffect(effectPcm(intent.kind === 'say' ? 'speech' : intent.kind, speech), signal);
       } else if (intent.kind === 'dramatic' || intent.kind === 'airhorn') {
+        await stopThinking();
+        signal.throwIfAborted();
         this.status = `Playing ${intent.kind}…`; void this.publish().catch(logError.bind(null, 'voice panel'));
         await this.session.playEffect(effectPcm(intent.kind), signal); response = `Played ${intent.kind}.`;
       }
@@ -199,6 +212,7 @@ export class HeyBaller {
       if (!signal.aborted && typeof input === 'string') this.report(error);
       throw error;
     } finally {
+      await stopThinking();
       if (this.execution === execution) { this.execution = undefined; this.executionUser = undefined; }
       this.rearm();
     }

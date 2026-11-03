@@ -124,6 +124,10 @@ Wake again for each request; it does not automatically keep recording after repl
 
 ### Setup and trial
 
+A quiet two-note pulse repeats while Baller understands a request, finds music, or generates speech. It starts after command capture, stops before the reply/effect, and clears on failure, opt-out, or Stop response. Music pauses during the pulse and resumes afterward. The loop has a 60-second safety limit.
+
+For a future custom voice, see the [recording script](docs/voice-sample-script.txt). Have the speaker approve use of their voice before uploading their recording; voice cloning is not enabled by this script.
+
 ```powershell
 git switch heyTT
 npm ci

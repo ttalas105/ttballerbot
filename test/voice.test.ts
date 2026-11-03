@@ -50,7 +50,7 @@ test('opt-out cancellation drops captured audio and the eight second limit bound
   const file = wav(Buffer.alloc(640)); assert.equal(file.readUInt32LE(40), 640); assert.equal(file.readUInt32LE(24), 16000);
 });
 test('effects have bounded duration, stereo frames and a limited output level', () => {
-  for (const kind of ['chime', 'dramatic', 'airhorn', 'entrance', 'wedding', 'speech'] as const) {
+  for (const kind of ['chime', 'thinking', 'dramatic', 'airhorn', 'entrance', 'wedding', 'speech'] as const) {
     const pcm = effectPcm(kind, Buffer.alloc(24000 * 2));
     assert.equal(pcm.length % 4, 0); assert.ok(pcm.length <= 28 * 48000 * 4);
     for (let i = 0; i < pcm.length; i += 4) { assert.ok(Math.abs(pcm.readInt16LE(i)) <= 27853); assert.equal(pcm.readInt16LE(i), pcm.readInt16LE(i + 2)); }
@@ -68,6 +68,15 @@ test('model routing rejects unknown actions, malformed replies, unsafe URLs, and
   assert.throws(() => parseDecision('{broken', people), /understand/);
   assert.deepEqual(decode({ kind: 'music', query: 'J Cole' }).intent, { kind: 'music', query: 'J Cole' });
   assert.deepEqual(decode({ kind: 'wedding', name: 'Tyrone' }).intent, { kind: 'wedding', name: 'Tyrone' });
+});
+
+test('thinking pulse is quiet, nonempty, and silent at its repeat seam', () => {
+  const pcm = effectPcm('thinking');
+  let peak = 0;
+  for (let i = 0; i < pcm.length; i += 4) peak = Math.max(peak, Math.abs(pcm.readInt16LE(i)));
+  assert.ok(peak > 500 && peak < 1500);
+  assert.equal(pcm.readInt16LE(0), 0);
+  assert.ok(pcm.subarray(48000 * 4).every(sample => sample === 0));
 });
 
 test('follow-up context is isolated, capped, expires, and is erased on opt-out', () => {
