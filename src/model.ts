@@ -5,6 +5,11 @@ export class PlaybackError extends UserError {
   constructor(message: string, readonly code: string) { super(message); }
 }
 
+export class VoiceError extends UserError {
+  override name = 'VoiceError';
+  constructor(message: string, readonly code: string) { super(message); }
+}
+
 export interface Track {
   id: string;
   title: string;
@@ -32,6 +37,6 @@ export function userMessage(error: unknown): string {
 
 // Do not print provider errors, subprocess arguments, signed URLs, or tokens.
 export function logError(context: string, error: unknown): void {
-  const code = error instanceof PlaybackError && /^[A-Z0-9_]{1,40}$/.test(error.code) ? ` ${error.code}` : '';
+  const code = (error instanceof PlaybackError || error instanceof VoiceError) && /^[A-Z0-9_]{1,40}$/.test(error.code) ? ` ${error.code}` : '';
   console.error(`${new Date().toISOString()} [${context}] ${error instanceof Error ? error.name : 'UnknownError'}${code}`);
 }

@@ -29,7 +29,12 @@ try {
   assert.equal(events.filter(event => event.type === 'wake').length, 1);
   worker.postMessage({ type: 'capture', userId: 'tester' }); send('tester'); await delay(1200);
   const command = events.find(event => event.type === 'command'); assert.ok(command?.pcm?.length);
+  worker.postMessage({ type: 'cancel', userId: 'tester' }); await delay(1100);
+  send('tester'); await delay(500);
+  assert.equal(events.filter(event => event.type === 'wake').length, 2);
+  worker.postMessage({ type: 'capture', userId: 'tester' }); send('tester'); await delay(1200);
+  assert.equal(events.filter(event => event.type === 'command' && event.pcm?.length).length, 2);
   worker.postMessage({ type: 'remove', userId: 'tester' }); send('tester'); await delay(200);
-  assert.equal(events.filter(event => event.type === 'wake').length, 1);
-  console.log('PASS: real Opus → worker → wake → bounded capture; unconsented and removed users ignored.');
+  assert.equal(events.filter(event => event.type === 'wake').length, 2);
+  console.log('PASS: real Opus → worker → wake → capture twice; unconsented and removed users ignored.');
 } finally { encoder.delete(); await worker.terminate(); }

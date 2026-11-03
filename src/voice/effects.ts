@@ -1,7 +1,7 @@
 /** Original synthesized effects. Raw signed 16-bit, 48 kHz stereo for Discord. */
-export function effectPcm(kind: 'chime' | 'dramatic' | 'airhorn' | 'entrance', speech?: Buffer): Buffer {
+export function effectPcm(kind: 'chime' | 'dramatic' | 'airhorn' | 'entrance' | 'wedding' | 'speech', speech?: Buffer): Buffer {
   const duration = kind === 'chime' ? 0.28 : kind === 'airhorn' ? 1.4 : kind === 'dramatic' ? 15
-    : Math.min(28, 2 + (speech?.length || 0) / 48000);
+    : Math.min(28, (kind === 'speech' ? 0.2 : 2) + (speech?.length || 0) / 48000);
   const count = Math.ceil(duration * 48000); const out = Buffer.alloc(count * 4);
   let noise = 777, previousNoise = 0;
   for (let i = 0; i < count; i++) {
@@ -12,6 +12,13 @@ export function effectPcm(kind: 'chime' | 'dramatic' | 'airhorn' | 'entrance', s
       const gate = t < 0.3 || (t > 0.42 && t < 0.72) || t > 0.84;
       if (gate) sample = (Math.sin(2 * Math.PI * 233 * t) + 0.5 * Math.sin(2 * Math.PI * 311 * t)
         + 0.2 * Math.sin(2 * Math.PI * 466 * t)) * 0.14 * fade;
+    } else if (kind === 'speech' || kind === 'wedding') {
+      if (kind === 'wedding') {
+        sample = [261.63, 329.63, 392].reduce((sum, frequency) => sum + Math.sin(2 * Math.PI * frequency * t), 0) * 0.012 * fade;
+        sample += Math.sin(2 * Math.PI * 1046.5 * t) * 0.06 * Math.exp(-t * 4);
+      }
+      const spokenIndex = Math.floor((t - (kind === 'speech' ? 0.05 : 1.2)) * 24000) * 2;
+      if (speech && spokenIndex >= 0 && spokenIndex + 1 < speech.length) sample += speech.readInt16LE(spokenIndex) / 32768 * 0.8;
     } else {
       const beat = t % (kind === 'entrance' ? 0.5 : 0.8);
       const pulse = Math.exp(-beat * 12);

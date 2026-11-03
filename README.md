@@ -108,14 +108,19 @@ To disconnect Spotify, revoke **ttballerbot** in your Spotify account's app-acce
 
 ## Hey Baller — experimental `heyTT` branch
 
-Local wake phrase detection with opt-in per Discord user. Say **“Hey Baller”**, wait for the ready chime, then say one of:
+An opt-in voice assistant for conversation, music, and sound effects. Say **“Hey Baller”**, wait for the ready chime, then speak:
 
 - “Give this conversation a dramatic soundtrack” — 15 seconds of original synthesized suspense music.
 - “Air horn” — a short synthesized horn.
-- “Announce Jason like a wrestling entrance” — an AI arena announcer over a synthesized entrance bed. Use the person's Discord display name or username; they must be in the channel. Ambiguous names are rejected.
-- “Stop” — stop effects. While an effect is playing, use the chat Stop effects button or `/hey mode:stop`; wake triggers are suppressed during playback to avoid echoes.
+- “Play some J Cole” — search and queue music through the same player as `/play`. Spotify/YouTube links work in typed requests too.
+- “Pause the music”, “resume”, “skip”, “go back”, “shuffle” — control the existing queue. “Stop the music” clears the queue and leaves voice.
+- “Tell me a joke”, “what is a pick and roll?”, “help me think of a team name” — short, natural spoken replies.
+- “Tell me another one” — follows your own recent conversation, separate from other listeners.
+- “Announce Jason like a wrestling entrance” or “announce me like a WWE entrance” — an AI arena announcer over a synthesized entrance bed.
+- “Announce Tyrone like a wedding” — a warm wedding host with a gentle musical bed. Names can be custom; matching Discord names/aliases retain their spelling. Ambiguous member names are rejected.
+- “Stop” — stop assistant speech/effects. While a request is processing or playing, use **Stop response** or `/hey mode:stop`; wake triggers are suppressed while busy to avoid echoes.
 
-The first version pauses music while playing effects and restores the same queue position afterward. It uses prepared announcer lines with the selected name; it does not yet write unlimited custom speeches or generate new music on demand. The detector and command routing run separately from Discord's audio scheduler. Wake phrase accuracy on real microphones needs a live trial; synthetic fixtures are not a substitute for testing accents, background noise, and speaker leakage.
+Wake again for each request; it does not automatically keep recording after replying. Music pauses for spoken replies/effects and resumes at the same position afterward. General replies and jokes are generated; wrestling/wedding entrances use prepared lines with the selected name. Effects are synthesized locally. Other sound effects and live browsing/sports scores are not available. The detector runs separately from Discord's audio scheduler. Wake accuracy on real microphones needs a live trial; synthetic fixtures are not a substitute for testing accents, background noise, and speaker leakage.
 
 ### Setup and trial
 
@@ -127,7 +132,7 @@ npm run voice:install
 
 In `.env`, set `ENABLE_HEY_BALLER=true`. Create a **free-tier** Gemini API key in [Google AI Studio](https://aistudio.google.com/api-keys), and set `GEMINI_API_KEY` locally. No OpenAI key is needed. Keep billing disabled for a free-only trial. Free-tier quotas vary by project/model; quota errors stop the request instead of retrying indefinitely or switching providers. Google says free-tier requests may be used to improve its products; see [pricing and data use](https://aistudio.google.com/docs/pricing).
 
-Defaults are `gemini-3.1-flash-lite` for command transcription and `gemini-3.8-flash-tts` with `Fenrir` for the announcer. `VOICE_TRANSCRIPTION_MODEL`, `VOICE_SPEECH_MODEL`, and `VOICE_ANNOUNCER` can override these. The last 20 generated entrance lines are cached in memory to reduce repeated API usage. Google model availability and free quotas must be checked for your own project.
+Defaults are `gemini-3.1-flash-lite` for audio understanding/conversation and `gemini-3.8-flash-tts` with `Fenrir` for speech. `VOICE_TRANSCRIPTION_MODEL`, `VOICE_SPEECH_MODEL`, and `VOICE_ANNOUNCER` can override these. A single multimodal call understands a spoken request and either selects an allowed action or writes a reply; spoken replies need a second TTS call. Explicit typed music/effect/control requests skip the understanding call. The last 20 generated speech lines are cached in memory by text and style. Cloud latency and free quotas vary; replies are not guaranteed to be instant.
 
 ```powershell
 npm run check
@@ -138,11 +143,13 @@ npm start
 
 Join voice and run `/hey mode:on`. **Only the user who invokes it opts in.** Up to four listeners can opt in; the session expires after 15 minutes from the most recent opt-in. The public status card lists listeners and explains data handling. `/hey mode:off` removes yourself, `/hey mode:alloff` stops all reception, and leaving voice removes your subscription. Anybody in the same voice channel can use the stop controls. Listening returns to off after a restart.
 
-`/effect prompt:dramatic soundtrack` and `/effect prompt:air horn` work without a speech key and without enabling listening. Without a key, `/hey mode:on` can still test the local wake detector and chime, but it does not open a command recording window.
+`/ask prompt:<request>` talks or acts in your voice channel without enabling microphone listening. `/effect` remains a shortcut. `/effect prompt:dramatic soundtrack` and `/effect prompt:air horn` work without a speech key. Without a key, `/hey mode:on` can still test the local wake detector and chime, but it does not open a command recording window.
 
 ### Voice data and limits
 
-Normal opted-in speech goes only to the local Sherpa-ONNX keyword spotter. After the ready chime, a bounded buffer holds at most eight seconds of that user's command. A short silence ends the command, and the buffer is sent to Gemini for transcription. The narrow parser accepts only the actions above; it never executes arbitrary model instructions, code, URLs, moderation, or server administration actions. Opt-out, channel leave, expiry, and stop cancel pending operations. The bot stores no incoming recordings or transcripts on disk and does not print them in logs. Gemini requests use `store:false`; Google's service terms/data policies still apply independently.
+Normal opted-in speech goes only to the local Sherpa-ONNX keyword spotter. After the ready chime, a bounded buffer holds at most eight seconds of that user's request. A short silence ends capture, and Gemini receives the buffer, name hints, and that speaker's last four successful requests/replies. Context stays in memory for ten minutes and is cleared on opt-out, channel leave, session expiry, or restart. Users' conversation contexts are separate. Spoken replies are audible to everyone in the channel.
+
+Model output is validated against an allowlist before any action. Music uses the existing URL validation, queue limits, and same-channel checks; there are no moderation, server administration, shell, or arbitrary network tools. Opt-out, channel leave, expiry, and stop cancel pending operations; late model responses cannot start playback. The bot stores no incoming recordings or transcripts on disk and does not print them in logs. Diagnostic logs contain only action categories, timing, and safe error codes. Gemini uses the stateless [generateContent API](https://aistudio.google.com/api-reference/generate-content/generate-content), without uploaded files, server-side conversation IDs, or explicit context caches. Google's service terms/data policies still apply independently.
 
 Discord voice reception is supported by `@discordjs/voice`, but is not documented by Discord and can break with platform changes. The wake model comes from the [official Sherpa-ONNX release](https://github.com/k2-fsa/sherpa-onnx/releases/tag/kws-models), downloaded separately with a pinned SHA-256. It is not committed to this repo. Model provenance/license: [upstream model](https://www.modelscope.cn/models/pkufool/sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01), Apache 2.0. The authored effects contain no sampled commercial recordings.
 
@@ -151,3 +158,4 @@ Additional checks:
 - `npx tsx scripts/smoke-wake.ts <mono-16kHz.wav> ...`: test keyword spotting locally; never joins Discord or calls an API.
 - `node dist/scripts/smoke-voice-worker.js <mono-16kHz-hey-baller.wav>`: verify real Opus decoding, opt-in isolation, wake detection, command capture, and opt-out.
 - `npx tsx scripts/smoke-gemini.ts <mono-16kHz-command.wav>`: make one Gemini transcription request. No path generates a Jason announcer preview in ignored `.runtime/` instead. These explicit development checks use API quota.
+- `npx tsx scripts/smoke-assistant.ts`: check music, wedding, jokes, follow-up context, and conversational TTS against Gemini without connecting to Discord. Writes an authored speech preview to ignored `.runtime/assistant-preview.wav`. Pass `<mono-16kHz-command.wav> <expected-action>` to check a synthetic audio fixture instead. Uses API quota; prints only result categories and timing.

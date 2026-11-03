@@ -14,12 +14,14 @@ export const commands = [
   command('remove', 'Remove a song from the upcoming queue')
     .addIntegerOption(option => option.setName('position').setDescription('Position shown in /queue').setMinValue(1).setRequired(true)),
   command('stop', 'Stop playback, clear the queue, and leave voice'),
-  command('hey', 'Opt your own voice into Hey Baller, or stop listening/effects')
+  command('hey', 'Opt your own voice into the Hey Baller assistant, or stop listening')
     .addStringOption(option => option.setName('mode').setDescription('Only on opts your own voice in for 15 minutes').setRequired(true)
       .addChoices({ name: 'On — listen to my voice', value: 'on' }, { name: 'Off — stop listening to me', value: 'off' },
-        { name: 'Status', value: 'status' }, { name: 'Stop effects', value: 'stop' }, { name: 'Turn listening off for everyone', value: 'alloff' })),
+        { name: 'Status', value: 'status' }, { name: 'Stop assistant response', value: 'stop' }, { name: 'Turn listening off for everyone', value: 'alloff' })),
+  command('ask', 'Talk to Baller, request music, or trigger an effect in your voice channel')
+    .addStringOption(option => option.setName('prompt').setDescription('Tell me a joke, play some J Cole, announce Tyrone like a wedding...').setRequired(true).setMaxLength(500)),
   command('effect', 'Play a sound effect or AI entrance without enabling voice listening')
-    .addStringOption(option => option.setName('prompt').setDescription('dramatic soundtrack, air horn, announce <Discord name> like a wrestling entrance').setRequired(true).setMaxLength(300)),
+    .addStringOption(option => option.setName('prompt').setDescription('dramatic soundtrack, air horn, announce <name> like a wedding or wrestling entrance').setRequired(true).setMaxLength(300)),
   command('help', 'How to use ttballerbot'),
 ];
 
@@ -36,7 +38,9 @@ export const help = [
   'Queues are temporary and reset when the bot restarts. I leave automatically when idle or alone.',
   '',
   'Experimental Hey Baller (when enabled by the host): `/hey mode:on` opts in your own voice for 15 minutes.',
-  'Say “Hey Baller”, wait for the chime, then “dramatic soundtrack”, “air horn”, or “announce <name> like a wrestling entrance”.',
-  '`/hey mode:off` opts you out. `/hey mode:alloff` stops all listening. `/hey mode:stop` stops effects.',
-  '`/effect prompt:dramatic soundtrack` works without voice listening. AI announcer speech is generated.',
+  'Say “Hey Baller”, wait for the chime, then ask a question, “tell me a joke”, “play some J Cole”, “pause the music”, or “dramatic soundtrack”.',
+  'Try “announce Tyrone like a wedding” or “announce me like a wrestling entrance”. Replies use an AI voice.',
+  'Wake again for each request. Your last 4 turns provide per-person context for 10 minutes; opt-out clears it.',
+  '`/hey mode:off` opts you out. `/hey mode:alloff` stops all listening. `/hey mode:stop` cancels a response.',
+  '`/ask prompt:<request>` works without voice listening. `/effect prompt:air horn` is a shortcut for effects.',
 ].join('\n');

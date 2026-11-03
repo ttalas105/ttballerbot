@@ -47,7 +47,7 @@ async function voiceAction(member: GuildMember, channel: GuildTextBasedChannel, 
   let assistant = assistants.get(member.guild.id);
   if (mode === 'status') {
     if (!assistant || assistant.ended) return 'Hey Baller is off. /hey mode:on opts in only your own voice.';
-    await assistant.publish(); return `Voice effects: <#${assistant.session.text.id}>. ${assistant.members.size} opted-in listener(s).`;
+    await assistant.publish(); return `Voice assistant: <#${assistant.session.text.id}>. ${assistant.members.size} opted-in listener(s).`;
   }
   const voice = requireVoice(member);
   if (assistant && !assistant.ended && assistant.session.voice?.id !== voice.id) throw new UserError('Join the bot’s voice channel first.');
@@ -56,22 +56,31 @@ async function voiceAction(member: GuildMember, channel: GuildTextBasedChannel, 
     if (mode === 'off') assistant.remove(member.id);
     else if (mode === 'alloff') assistant.close();
     else assistant.cancel();
-    return mode === 'stop' ? 'Effects stopped.' : 'Listening updated.';
+    return mode === 'stop' ? 'Assistant response stopped.' : 'Listening updated.';
   }
   const session = sessionFor(member, channel);
   await session.serial.run(async () => {
     session.assertMember(member); await session.connect(member);
-    if (!assistant || assistant.ended) { assistant = new HeyBaller(session, speech); assistants.set(member.guild.id, assistant); }
+    if (!assistant || assistant.ended) {
+      assistant = new HeyBaller(session, speech, { play: async (query, userId, signal) => {
+        signal.throwIfAborted();
+        const requester = session.voice?.members.get(userId);
+        if (!requester) throw new UserError('Join the bot’s voice channel first.');
+        return play(requester, session.text, query, signal);
+      } });
+      assistants.set(member.guild.id, assistant);
+    }
     if (mode === 'on') await assistant.enable(member);
   });
-  if (mode === 'effect') {
+  if (mode === 'effect' || mode === 'ask') {
     try { await assistant!.execute(prompt || '', member.id); }
-    finally { if (!assistant!.members.size && !session.queue.size) session.close('Sound effect finished.'); }
+    finally { if (!assistant!.busy && !assistant!.members.size && !session.queue.size) session.close('Assistant request finished.'); }
   }
-  return mode === 'on' ? 'Enabled for your voice for 15 minutes. Say “Hey Baller”, wait for the chime, then give a command. /hey mode:off opts out.' : 'Effect complete.';
+  return mode === 'on' ? 'Enabled for your voice for 15 minutes. Say “Hey Baller”, wait for the chime, then ask anything, request music, or an effect. Wake again for each request. /hey mode:off opts out.' : 'Request complete.';
 }
 
-async function play(member: GuildMember, channel: GuildTextBasedChannel, query: string): Promise<string> {
+async function play(member: GuildMember, channel: GuildTextBasedChannel, query: string, signal?: AbortSignal): Promise<string> {
+  signal?.throwIfAborted();
   const voice = requireVoice(member);
   sessions.get(member.guild.id)?.assertMember(member);
   if (importing.has(member.guild.id)) throw new UserError('Another song or playlist is being added. Give it a moment.');
@@ -89,7 +98,7 @@ async function play(member: GuildMember, channel: GuildTextBasedChannel, query: 
       const track = await youtube.lookup(input.kind === 'youtube' ? input.url : input.query, member.id);
       result = { tracks: [track], label: track.title };
     } else throw new UserError('Use the full Spotify link.');
-    if (importRequest.controller.signal.aborted) throw new UserError('The import was cancelled. Nothing was added.');
+    if (signal?.aborted || importRequest.controller.signal.aborted) throw new UserError('The import was cancelled. Nothing was added.');
     // Stop cancels an in-progress import for an existing session.
     if (existing && existing.closed) throw new UserError('The session stopped while importing; nothing was added.');
     requireVoice(member);
@@ -97,8 +106,12 @@ async function play(member: GuildMember, channel: GuildTextBasedChannel, query: 
     const target = session;
     try {
       await target.serial.run(async () => {
+        signal?.throwIfAborted();
+        if (importRequest.controller.signal.aborted) throw new UserError('The import was cancelled. Nothing was added.');
         target.assertMember(member);
         await target.connect(member);
+        signal?.throwIfAborted();
+        if (importRequest.controller.signal.aborted) throw new UserError('The import was cancelled. Nothing was added.');
         target.add(result.tracks);
         await target.publish();
       });
@@ -186,11 +199,11 @@ client.on(Events.InteractionCreate, interaction => {
       }
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const name = interaction.commandName;
-      if (name === 'hey' || name === 'effect') {
+      if (name === 'hey' || name === 'effect' || name === 'ask') {
         const channel = interaction.channel;
         if (!channel || channel.isDMBased() || !channel.isTextBased()) throw new UserError('Use a server text channel.');
         await interaction.editReply(await voiceAction(interaction.member, channel,
-          name === 'hey' ? interaction.options.getString('mode', true) : 'effect', interaction.options.getString('prompt') || undefined)); return;
+          name === 'hey' ? interaction.options.getString('mode', true) : name, interaction.options.getString('prompt') || undefined)); return;
       }
       if (name === 'help') { await interaction.editReply(help.replace('!play', `${config.prefix}play`)); return; }
       if (name === 'queue') {
