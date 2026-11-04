@@ -58,7 +58,7 @@ Get-Content .\.runtime\bot.log
 & .\scripts\stop-background.ps1
 ```
 
-The bot stays available only while this computer and process are running. No startup task, paid hosting, or public deployment is installed. Use one running instance per token. Queues live in memory and reset on restart.
+The Windows background launcher uses an on-demand Task Scheduler task named `ttballerbot-local`, running as your logged-in user without elevation or a stored password. It stays independent of the command window and retries unexpected exits up to three times, one minute apart. `stop-background.ps1` stops the task and bot intentionally. There is no boot/login trigger: use the start script after logging in. The computer must stay awake and online. Logs are in `.runtime/bot.log`, `.runtime/bot-error.log`, and `.runtime/supervisor.log`; the previous run is kept in `previous-bot*.log`. Use one running instance per token. Queues live in memory and reset on restart.
 
 ### Optional `!play` commands
 
@@ -136,6 +136,8 @@ git switch heyTT
 npm ci
 npm run voice:install
 ```
+
+Up to four people can opt in to the same assistant and take turns speaking. Adding another listener keeps existing listeners connected. Each person's 15-minute opt-in expires independently; opting out affects only that person.
 
 In `.env`, set `ENABLE_HEY_BALLER=true`. Create a **free-tier** Gemini API key in [Google AI Studio](https://aistudio.google.com/api-keys), and set `GEMINI_API_KEY` locally. No OpenAI key is needed. Keep billing disabled for a free-only trial. Free-tier quotas vary by project/model; quota errors stop the request instead of retrying indefinitely or switching providers. Google says free-tier requests may be used to improve its products; see [pricing and data use](https://aistudio.google.com/docs/pricing).
 

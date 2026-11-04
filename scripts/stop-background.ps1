@@ -1,6 +1,12 @@
 $ErrorActionPreference = 'Stop'
 $botRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $pidFile = Join-Path $botRoot '.runtime\bot.pid'
+$runtimeRoot = Join-Path $botRoot '.runtime'
+New-Item -ItemType Directory -Path $runtimeRoot -Force | Out-Null
+Set-Content -LiteralPath (Join-Path $runtimeRoot 'bot.stop') -Value 'intentional stop'
+$task = Get-ScheduledTask -TaskName 'ttballerbot-local' -ErrorAction SilentlyContinue
+$runner = Join-Path $PSScriptRoot 'run-background.ps1'
+if ($task -and ($task.Actions.Arguments -like ('*' + $runner + '*'))) { Stop-ScheduledTask -TaskName 'ttballerbot-local' }
 if (-not (Test-Path -LiteralPath $pidFile)) { Write-Output 'No background bot PID was recorded.'; exit 0 }
 $botPid = [int](Get-Content -LiteralPath $pidFile)
 $botProcess = Get-CimInstance Win32_Process -Filter "ProcessId = $botPid" -ErrorAction SilentlyContinue

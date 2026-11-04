@@ -9,6 +9,7 @@ import { UserError, logError, userMessage, type ImportResult } from './model.js'
 import { addSongModal, clean, queuePage } from './panel.js';
 import { saveEnv } from '../scripts/env.js';
 import { HeyRajan } from './voice/assistant.js';
+import { prepareAssistant } from './voice/registry.js';
 import { Speech } from './voice/speech.js';
 import { configuredFishVoice } from './voice/fish.js';
 import { loadErrorAudio } from './voice/feedback.js';
@@ -72,19 +73,13 @@ async function voiceAction(member: GuildMember, channel: GuildTextBasedChannel, 
     return mode === 'stop' ? 'Assistant response stopped.' : 'Listening updated.';
   }
   const session = sessionFor(member, channel);
-  await session.serial.run(async () => {
-    session.assertMember(member); await session.connect(member);
-    if (!assistant || assistant.ended) {
-      assistant = new HeyRajan(session, speech, { play: async (query, userId, signal) => {
+  assistant = await prepareAssistant(assistants, member.guild.id, session, member,
+    () => new HeyRajan(session, speech, { play: async (query, userId, signal) => {
         signal.throwIfAborted();
         const requester = session.voice?.members.get(userId);
         if (!requester) throw new UserError('Join the bot’s voice channel first.');
         return play(requester, session.text, query, signal);
-      } });
-      assistants.set(member.guild.id, assistant);
-    }
-    if (mode === 'on') await assistant.enable(member);
-  });
+      } }), mode === 'on' ? current => current.enable(member) : undefined);
   if (mode === 'effect' || mode === 'ask') {
     try { await assistant!.execute(prompt || '', member.id); }
     finally { if (!assistant!.busy && !assistant!.members.size && !session.queue.size && !watchers.active(member.guild.id)) session.close('Assistant request finished.'); }

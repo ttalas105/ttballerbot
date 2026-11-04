@@ -1,5 +1,5 @@
 import { Worker } from 'node:worker_threads';
-import { EndBehaviorType, VoiceConnectionStatus, type AudioReceiveStream } from '@discordjs/voice';
+import { EndBehaviorType, VoiceConnectionStatus, entersState, type AudioReceiveStream } from '@discordjs/voice';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, type GuildMember, type Message } from 'discord.js';
 import { MusicSession } from '../session.js';
 import { SerialExecutor } from '../queue.js';
@@ -20,7 +20,8 @@ export class HeyRajan {
   private message?: Message;
   private pending = new Map<string, number>();
   private readonly panelSerial = new SerialExecutor();
-  private expiry?: NodeJS.Timeout;
+  private readonly expiries = new Map<string, NodeJS.Timeout>();
+  private readonly enabling = new Map<string, symbol>();
   private closed = false;
   private generation = 0;
   private status = 'Off';
@@ -72,37 +73,50 @@ export class HeyRajan {
     if (this.closed) throw new UserError('This voice session ended. Use /hey on again.');
     if (this.members.has(member.id)) return;
     if (this.members.size >= 4) throw new UserError('This first version supports four opted-in listeners at once.');
-    await this.init();
-    this.session.assertMember(member);
-    // Publish disclosure before reception begins. An unsuccessful notice must not enable listening.
-    this.status = `Enabling for ${member.displayName}`;
-    await this.publish();
-    const connection = this.session.connection!;
-    if (!this.members.size) connection.receiver.speaking.on('end', this.speakingEnd);
-    connection.rejoin({ ...connection.joinConfig, selfDeaf: false });
-    const stream = connection.receiver.subscribe(member.id, { end: { behavior: EndBehaviorType.Manual } });
-    this.members.set(member.id, stream); this.pending.set(member.id, 0);
-    this.worker!.postMessage({ type: 'add', userId: member.id });
-    stream.on('data', (packet: Buffer) => {
-      if (this.closed || !this.members.has(member.id)) return;
-      if ((this.pending.get(member.id) || 0) >= 100) { this.remove(member.id); this.status = 'Voice processing fell behind. Please enable again.'; void this.publish().catch(logError.bind(null, 'voice panel')); return; }
-      this.pending.set(member.id, (this.pending.get(member.id) || 0) + 1);
-      this.worker?.postMessage({ type: 'audio', userId: member.id, packet });
-    });
-    stream.on('error', error => { logError('voice receive', error); this.remove(member.id); });
-    this.status = this.speech.configured ? 'Say “Hey Rajan”, wait for the chime, then speak.' : 'Wake test ready. Commands need a Gemini API key; /effect dramatic works now.';
-    clearTimeout(this.expiry);
-    this.expiry = setTimeout(() => this.close('Listening expired after 15 minutes. Use /hey on again.'), 15 * 60000); this.expiry.unref();
-    await this.publish();
+    const attempt = Symbol(); this.enabling.set(member.id, attempt);
+    const check = () => {
+      if (this.closed || this.enabling.get(member.id) !== attempt) throw new UserError('Listening was canceled. Use /hey on again.');
+      this.session.assertMember(member);
+    };
+    try {
+      await this.init();
+      check();
+      // Publish disclosure before reception begins. An unsuccessful notice must not enable listening.
+      this.status = `Enabling for ${member.displayName}`;
+      await this.publish();
+      check();
+      const connection = this.session.connection!;
+      // Changing this for every new listener interrupts the existing receive streams.
+      if (connection.joinConfig.selfDeaf !== false) connection.rejoin({ ...connection.joinConfig, selfDeaf: false });
+      await entersState(connection, VoiceConnectionStatus.Ready, 20000);
+      check();
+      if (!this.members.size) connection.receiver.speaking.on('end', this.speakingEnd);
+      const stream = connection.receiver.subscribe(member.id, { end: { behavior: EndBehaviorType.Manual } });
+      this.members.set(member.id, stream); this.pending.set(member.id, 0);
+      this.worker!.postMessage({ type: 'add', userId: member.id });
+      stream.on('data', (packet: Buffer) => {
+        if (this.closed || this.members.get(member.id) !== stream) return;
+        if ((this.pending.get(member.id) || 0) >= 100) { this.remove(member.id); this.status = 'Voice processing fell behind. Please enable again.'; void this.publish().catch(logError.bind(null, 'voice panel')); return; }
+        this.pending.set(member.id, (this.pending.get(member.id) || 0) + 1);
+        this.worker?.postMessage({ type: 'audio', userId: member.id, packet });
+      });
+      stream.on('error', error => { if (this.members.get(member.id) === stream) { logError('voice receive', error); this.remove(member.id); } });
+      this.status = this.speech.configured ? 'Say “Hey Rajan”, wait for the chime, then speak.' : 'Wake test ready. Commands need a Gemini API key; /effect dramatic works now.';
+      const expiry = setTimeout(() => { if (this.members.get(member.id) === stream) this.remove(member.id); }, 15 * 60000);
+      expiry.unref(); this.expiries.set(member.id, expiry);
+      console.log(`${new Date().toISOString()} [hey rajan] listeners=${this.members.size} event=enabled`);
+      await this.publish();
+    } finally { if (this.enabling.get(member.id) === attempt) this.enabling.delete(member.id); }
   }
   remove(userId: string): void {
+    this.enabling.delete(userId);
+    clearTimeout(this.expiries.get(userId)); this.expiries.delete(userId);
     this.members.get(userId)?.destroy(); this.members.delete(userId); this.pending.delete(userId);
     this.memory.remove(userId); this.lastRequest.delete(userId);
     this.worker?.postMessage({ type: 'remove', userId });
     if (this.active?.userId === userId || this.executionUser === userId) this.cancel();
     if (!this.members.size && !this.session.watching) this.close('Listening is off.');
     else if (!this.members.size) {
-      clearTimeout(this.expiry);
       const connection = this.session.connection;
       connection?.receiver.speaking.off('end', this.speakingEnd);
       if (connection && connection.state.status !== VoiceConnectionStatus.Destroyed) connection.rejoin({ ...connection.joinConfig, selfDeaf: true });
@@ -296,7 +310,9 @@ export class HeyRajan {
   get busy(): boolean { return !!this.active || !!this.execution || this.session.effectPlaying; }
   close(reason = 'Voice listening and effects are off.'): void {
     if (this.closed) return;
-    this.closed = true; this.cancel(); clearTimeout(this.expiry);
+    this.closed = true; this.enabling.clear(); this.cancel();
+    for (const expiry of this.expiries.values()) clearTimeout(expiry);
+    this.expiries.clear();
     for (const stream of this.members.values()) stream.destroy();
     this.members.clear(); this.pending.clear(); this.memory.clear(); this.lastRequest.clear();
     void this.worker?.terminate(); this.worker = undefined;
