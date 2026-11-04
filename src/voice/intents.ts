@@ -19,11 +19,12 @@ export function resolveName(target: string, people: Person[], userId?: string): 
   return clean.replace(/^\p{L}/u, letter => letter.toUpperCase());
 }
 
-/** Fast path for explicit typed requests; other requests go to the conversational model. */
-export function parseVoiceIntent(text: string, people: Person[], userId?: string): VoiceIntent {
-  const raw = text.trim().replace(/^hey rajan[,!\s]*/i, '').replace(/^(?:(?:can|could|would) you\s+)?(?:please\s+)?/i, '').replace(/[,!?.]*\s+please[.!?]*$/i, '').trim();
-  const command = normalize(raw).replace(/\bw w e\b/g, 'wwe');
-  if (!command) throw new VoiceError('I didn’t hear a request. Say “Hey Rajan”, then speak after the chime.', 'VOICE_EMPTY_COMMAND');
+const requestText = (text: string) => text.trim().replace(/^hey rajan[,!\s]*/i, '').replace(/^(?:(?:can|could|would) you\s+)?(?:please\s+)?/i, '').replace(/[,!?.]*\s+please[.!?]*$/i, '').trim();
+
+/** Exact controls only; never interpret free-form arguments or quoted instructions. */
+export function parseImmediateVoiceIntent(text: string): { kind: SimpleKind } | undefined {
+  if (/["'“”‘’]/.test(text)) return undefined;
+  const command = normalize(requestText(text));
   if (/^(?:stop|stop (?:the )?(?:effects|sound|soundtrack|talking)|cancel|quiet|silence)$/.test(command)) return { kind: 'stop' };
   if (/^(?:stop (?:the )?music|stop playing music)$/.test(command)) return { kind: 'stop_music' };
   if (/^(?:pause|pause (?:the )?(?:music|song))$/.test(command)) return { kind: 'pause' };
@@ -33,6 +34,15 @@ export function parseVoiceIntent(text: string, people: Person[], userId?: string
   if (/^(?:shuffle|shuffle (?:the )?(?:queue|music))$/.test(command)) return { kind: 'shuffle' };
   if (/^(?:(?:play|give us|give this conversation|put on|add|start) (?:a |some |the )?)?(?:dramatic|suspense|dramatic soundtrack|dramatic music|suspense music|dramatic background music)$/.test(command)) return { kind: 'dramatic' };
   if (/^(?:(?:play|give us|hit) (?:an? |the )?)?air ?horn$/.test(command)) return { kind: 'airhorn' };
+}
+
+/** Fast path for explicit typed requests; other requests go to the conversational model. */
+export function parseVoiceIntent(text: string, people: Person[], userId?: string): VoiceIntent {
+  const raw = requestText(text);
+  const command = normalize(raw).replace(/\bw w e\b/g, 'wwe');
+  if (!command) throw new VoiceError('I didn’t hear a request. Say “Hey Rajan”, then speak after the chime.', 'VOICE_EMPTY_COMMAND');
+  const immediate = parseImmediateVoiceIntent(text);
+  if (immediate) return immediate;
   const wedding = /^(?:announce|introduce) (.+?) (?:like|at|for|as if (?:at|its)) (?:a |an |their )?wedding(?: entrance| announcer)?$/.exec(command)?.[1];
   if (wedding) return { kind: 'wedding', name: resolveName(wedding, people, userId) };
   const target = /^(?:announce|introduce) (.+?)(?: like (?:a |an )?(?:wwe|wrestling)(?: entrance| announcer)?| with (?:a |an )?(?:wwe|wrestling) entrance)$/.exec(command)?.[1]

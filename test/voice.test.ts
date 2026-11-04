@@ -102,14 +102,12 @@ test('assistant transcribes audio before fast text conversation, preserving per-
   const speech = new Speech('test-key', undefined, undefined, undefined, async (url, init) => {
     request = JSON.parse(String(init?.body));
     if (++calls === 1) {
-      assert.match(String(url), /\/interactions$/);
-      assert.equal(request.store, false);
-      assert.equal(request.input.length, 1);
-      assert.equal(request.input[0].type, 'audio');
+      assert.match(String(url), /\/gemini-3\.1-flash-lite:generateContent$/);
+      assert.equal(request.contents[0].parts[1].inlineData.mimeType, 'audio/wav');
       assert.doesNotMatch(JSON.stringify(request), /First joke|tell me a joke/);
-      return Response.json({ status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'text', text: 'tell me another one' }] }] });
+      return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ transcript: 'tell me another one' }) }] }, finishReason: 'STOP' }] });
     }
-    assert.match(String(url), /\/gemini-3\.5-flash-lite:streamGenerateContent\?alt=sse$/);
+    assert.match(String(url), /\/gemini-3\.1-flash-lite:streamGenerateContent\?alt=sse$/);
     return streamedDecision({ transcript: 'tell me another one', kind: 'say', reply: 'Another joke.', query: '', name: '' });
   });
   const result = await speech.understand(Buffer.alloc(32000), people, '2', [{ request: 'tell me a joke', response: 'First joke.' }], new AbortController().signal);
@@ -159,7 +157,7 @@ test('dedicated transcription sends bounded inline audio and explicitly disables
     assert.equal((init?.headers as Record<string, string>)['x-goog-api-key'], 'test-key');
     assert.equal((init?.headers as Record<string, string>)['Api-Revision'], '2026-05-20');
     return Response.json({ status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'text', text: 'air horn' }] }] });
-  });
+  }, undefined, undefined, undefined, 'gemini-3.5-transcribe');
   assert.equal(await speech.transcribe(Buffer.alloc(32000), ['Jason'], new AbortController().signal), 'air horn');
   assert.equal(request.model, 'gemini-3.5-transcribe');
   assert.equal(request.store, false); assert.equal(request.previous_interaction_id, undefined);
