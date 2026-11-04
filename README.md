@@ -58,7 +58,7 @@ Get-Content .\.runtime\bot.log
 & .\scripts\stop-background.ps1
 ```
 
-The Windows background launcher uses an on-demand Task Scheduler task named `ttballerbot-local`, running as your logged-in user without elevation or a stored password. It stays independent of the command window and retries unexpected exits up to three times, one minute apart. `stop-background.ps1` stops the task and bot intentionally. There is no boot/login trigger: use the start script after logging in. The computer must stay awake and online. Logs are in `.runtime/bot.log`, `.runtime/bot-error.log`, and `.runtime/supervisor.log`; the previous run is kept in `previous-bot*.log`. Use one running instance per token. Queues live in memory and reset on restart.
+The Windows background launcher uses an on-demand Task Scheduler task named `ttballerbot-local`, running as your logged-in user without elevation or a stored password. It stays independent of the command window; the launcher retries unexpected bot exits up to three times, five seconds apart. `stop-background.ps1` stops the task and bot intentionally. There is no boot/login trigger: use the start script after logging in. The computer must stay awake and online. Logs are in `.runtime/bot.log`, `.runtime/bot-error.log`, and `.runtime/supervisor.log`; the previous run is kept in `previous-bot*.log`. Use one running instance per token. Queues live in memory and reset on restart.
 
 ### Optional `!play` commands
 
