@@ -10,7 +10,7 @@ import type { ConversationTurn } from '../src/voice/memory.js';
 // Explicit development check: uses configured providers, never joins Discord or queues music.
 // Only authored fixture text/audio is sent. Never print model text or credential values.
 const fish = configuredFishVoice(config);
-const speech = new Speech(config.geminiKey, config.transcriptionModel, config.speechModel, config.announcerVoice, undefined, fish, undefined, config.watchModel, config.asrModel);
+const speech = new Speech(config.geminiKey, config.transcriptionModel, config.speechModel, config.announcerVoice, undefined, fish, undefined, config.watchModel, config.asrModel, config.voiceFallbackModel);
 const people = [{ id: 'fixture', name: 'Jason', aliases: [] }];
 const history: ConversationTurn[] = [];
 try {

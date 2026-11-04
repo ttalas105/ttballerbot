@@ -5,7 +5,7 @@ import { entranceLine } from '../src/voice/intents.js';
 import { wav } from '../src/voice/capture.js';
 import { logError, userMessage } from '../src/model.js';
 
-const speech = new Speech(config.geminiKey, config.transcriptionModel, config.speechModel, config.announcerVoice, undefined, undefined, undefined, config.watchModel, config.asrModel);
+const speech = new Speech(config.geminiKey, config.transcriptionModel, config.speechModel, config.announcerVoice, undefined, undefined, undefined, config.watchModel, config.asrModel, config.voiceFallbackModel);
 try {
   const signal = AbortSignal.timeout(30000);
   if (process.argv[2]) {

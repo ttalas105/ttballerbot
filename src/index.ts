@@ -30,7 +30,7 @@ const youtube = new YouTube(config.ytdlp, config.ffmpeg);
 const sessions = new Map<string, MusicSession>();
 const assistants = new Map<string, HeyRajan>();
 const fish = configuredFishVoice(config);
-const speech = new Speech(config.geminiKey, config.transcriptionModel, config.speechModel, config.announcerVoice, undefined, fish, loadErrorAudio(config.voiceErrorAudio), config.watchModel, config.asrModel);
+const speech = new Speech(config.geminiKey, config.transcriptionModel, config.speechModel, config.announcerVoice, undefined, fish, loadErrorAudio(config.voiceErrorAudio), config.watchModel, config.asrModel, config.voiceFallbackModel);
 const importing = new Map<string, { controller: AbortController; voiceId: string }>();
 const watchers = new WatchManager();
 let watchServer: WatchServer | undefined;

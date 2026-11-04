@@ -31,6 +31,7 @@ export const config = {
   geminiKey: process.env.GEMINI_API_KEY || '',
   transcriptionModel: process.env.VOICE_TRANSCRIPTION_MODEL || 'gemini-3.1-flash-lite',
   asrModel: process.env.VOICE_ASR_MODEL || 'gemini-3.1-flash-lite',
+  voiceFallbackModel: process.env.VOICE_FALLBACK_MODEL ?? 'gemini-3.5-flash-lite',
   speechModel: process.env.VOICE_SPEECH_MODEL || 'gemini-3.8-flash-tts',
   announcerVoice: process.env.VOICE_ANNOUNCER || 'Fenrir',
   voiceErrorAudio: process.env.VOICE_ERROR_AUDIO || '',
